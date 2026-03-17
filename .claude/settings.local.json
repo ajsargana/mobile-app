@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/nativewind/package.json''\\).version\\)\")",
+      "Bash(xargs -I{} basename {} .tsx)",
+      "Bash(grep -rn \"import ThemedCard\" src/components/*.tsx)",
+      "Bash(./gradlew assembleRelease)",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/tailwindcss/package.json''\\).version\\)\")",
+      "Bash(node -e \"require\\(''./metro.config.js''\\); console.log\\(''metro.config.js OK''\\)\")",
+      "Bash(node -e \"require\\(''''@babel/core''''\\).transformSync\\(''''const x = 1'''', { filename: ''''test.js'''', configFile: ''''./babel.config.js'''' }\\)\")",
+      "Bash(node -e \"const p = require\\(''nativewind/babel''\\); console.log\\(typeof p, Object.keys\\(p\\)\\)\")",
+      "Bash(node -e \"const p = require\\(''babel-plugin-module-resolver''\\); console.log\\(typeof p, typeof p === ''object'' ? Object.keys\\(p\\) : ''function''\\)\")",
+      "Bash(node -e \"const p = require\\(''babel-plugin-module-resolver''\\); const fn = p.default || p; console.log\\(typeof fn\\); const result = fn\\({types: null}\\); console.log\\(Object.keys\\(result\\)\\)\")",
+      "Bash(node -e \":*)",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/babel-preset-expo/package.json''\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/@babel/core/package.json''\\).version\\)\")"
+    ]
+  }
+}

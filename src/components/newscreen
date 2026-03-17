@@ -1,0 +1,289 @@
+import React, { useState, useMemo, useCallback } from 'react';
+import { User, Bell, Eye, EyeOff, ArrowUpCircle, ArrowDownCircle, Plus, Home, Trophy, Heart, Settings, TrendingUp, ChevronDown } from 'lucide-react';
+
+const App = () => {
+  const [showBalance, setShowBalance] = useState(true);
+  const [activeAction, setActiveAction] = useState('Send');
+  const [activeNavTab, setActiveNavTab] = useState('home');
+  const [addContactModalOpen, setAddContactModalOpen] = useState(false);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactAddress, setNewContactAddress] = useState('');
+
+  const walletBalance = '2001.0000';
+  const notificationCount = 3;
+
+  const contacts = useMemo(() => [
+    { id: '1', name: 'Sam', initial: 'S', avatar: 'https://placehold.co/48x48/png?text=S' },
+    { id: '2', name: 'Alan', initial: 'A', avatar: 'https://placehold.co/48x48/png?text=A' },
+    { id: '3', name: 'Luis', initial: 'L', avatar: 'https://placehold.co/48x48/png?text=L' },
+    { id: '4', name: 'Sham', initial: 'S', avatar: 'https://placehold.co/48x48/png?text=S' },
+    { id: '5', name: 'Bin', initial: 'B', avatar: 'https://placehold.co/48x48/png?text=B' },
+  ], []);
+
+  const recentPayments = useMemo(() => [
+    { id: 'p1', type: 'Received', description: 'From aura so..... fb', amount: '0.10000', currency: 'A50' },
+    { id: 'p2', type: 'Sent', description: 'To aura so.....', amount: '10.00000', currency: 'A50' },
+  ], []);
+
+  const marketData = useMemo(() => [
+    { id: 'm1', name: 'Bitcoin', symbol: 'BTC', change: '0.4%', direction: 'down', trend: [10, 12, 8, 15, 11, 14, 9] },
+    { id: 'm2', name: 'Ethereum', symbol: 'ETH', change: '8.0%', direction: 'up', trend: [9, 11, 14, 10, 13, 16, 12] },
+  ], []);
+
+  const handleToggleBalance = useCallback(() => {
+    setShowBalance(prev => !prev);
+  }, []);
+
+  const handleActionClick = useCallback((action) => {
+    setActiveAction(action);
+    console.log(`${action} clicked`);
+  }, []);
+
+  const handleNavClick = useCallback((tab) => {
+    setActiveNavTab(tab);
+    console.log(`Navigated to ${tab}`);
+  }, []);
+
+  const handleViewAllClick = useCallback((section) => {
+    console.log(`View All ${section} clicked`);
+  }, []);
+
+  const handleAddContactClick = useCallback(() => {
+    setAddContactModalOpen(true);
+  }, []);
+
+  const handleCloseAddContactModal = useCallback(() => {
+    setAddContactModalOpen(false);
+    setNewContactName('');
+    setNewContactAddress('');
+  }, []);
+
+  const handleSaveContact = useCallback(() => {
+    console.log('Saving contact:', { name: newContactName, address: newContactAddress });
+    // In a real app, you'd add this to your contacts state/API
+    handleCloseAddContactModal();
+  }, [newContactName, newContactAddress, handleCloseAddContactModal]);
+
+  return (
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 p-4 flex flex-col items-center">
+      {/* Header */}
+      <div className="w-full max-w-md flex justify-between items-center mb-6">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shadow-sm">
+            <User className="w-5 h-5 text-blue-600" />
+          </div>
+          <span className="text-xl font-semibold">Good Morning Alex</span>
+        </div>
+        <div className="relative">
+          <Bell className="w-6 h-6 text-gray-600" />
+          {notificationCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-medium">
+              {notificationCount}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Main Wallet Card */}
+      <div className="w-full max-w-md bg-gradient-to-br from-blue-600 to-purple-700 rounded-2xl p-6 mb-6 shadow-lg relative overflow-hidden text-white">
+        <div className="absolute inset-0 z-0 opacity-30">
+          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path d="M0 0 L100 0 L100 100 L0 100 Z" fill="none" stroke="white" strokeWidth="0.2" />
+            <path d="M0 0 L50 100 L100 0 Z" fill="none" stroke="white" strokeWidth="0.2" />
+            <path d="M0 50 L50 0 L100 50 Z" fill="none" stroke="white" strokeWidth="0.2" />
+            <path d="M20 20 L80 20 L50 80 Z" fill="none" stroke="white" strokeWidth="0.2" />
+            <path d="M10 90 L90 90 L50 10 Z" fill="none" stroke="white" strokeWidth="0.2" />
+            <circle cx="20" cy="20" r="3" fill="white" opacity="0.5" />
+            <circle cx="80" cy="30" r="2" fill="white" opacity="0.5" />
+            <circle cx="50" cy="70" r="4" fill="white" opacity="0.5" />
+          </svg>
+        </div>
+        <div className="relative z-10">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-2xl font-bold">A50</span>
+            <div className="flex space-x-2">
+              <Plus className="w-5 h-5 text-white opacity-80" />
+              <ChevronDown className="w-5 h-5 text-white opacity-80" />
+            </div>
+          </div>
+          <div className="flex items-center mb-4">
+            <span className="text-4xl font-extrabold mr-3">{showBalance ? walletBalance : '****.****'}</span>
+            <button onClick={handleToggleBalance} className="p-1 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-all">
+              {showBalance ? <Eye className="w-5 h-5 text-white" /> : <EyeOff className="w-5 h-5 text-white" />}
+            </button>
+          </div>
+          <button onClick={() => console.log('New-user clicked')} className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white text-sm px-4 py-1.5 rounded-full font-medium transition-all">
+            New-user
+          </button>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="w-full max-w-md flex justify-around mb-6">
+        {['Send', 'Receive', 'Seed', 'Favourite'].map((action) => (
+          <button
+            key={action}
+            onClick={() => handleActionClick(action)}
+            className={`flex-1 mx-1 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+              ${activeAction === action ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          >
+            {action}
+          </button>
+        ))}
+      </div>
+
+      {/* Top Contacts & Payments */}
+      <div className="w-full max-w-md bg-white rounded-xl p-5 mb-6 shadow-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">Top Contacts & Payments</h2>
+          <button onClick={() => handleViewAllClick('Contacts')} className="text-sm text-blue-600 hover:underline font-medium">
+            View All <span className="ml-1">&gt;</span>
+          </button>
+        </div>
+        <div className="flex overflow-x-auto space-x-4 pb-2 scrollbar-hide">
+          {contacts.map((contact) => (
+            <div key={contact.id} className="flex flex-col items-center flex-shrink-0">
+              <img src={contact.avatar} alt={contact.name} className="w-12 h-12 rounded-full object-cover mb-1 shadow-sm" />
+              <span className="text-xs text-gray-600 font-medium">{contact.name}</span>
+            </div>
+          ))}
+          <div className="flex flex-col items-center flex-shrink-0">
+            <button onClick={handleAddContactClick} className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold mb-1 shadow-sm hover:bg-blue-200 transition-colors">
+              <Plus className="w-6 h-6" />
+            </button>
+            <span className="text-xs text-gray-600 font-medium">Add</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Payments */}
+      <div className="w-full max-w-md bg-white rounded-xl p-5 mb-6 shadow-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">Recent Payments</h2>
+          <button onClick={() => handleViewAllClick('Payments')} className="text-sm text-blue-600 hover:underline font-medium">
+            View All <span className="ml-1">&gt;</span>
+          </button>
+        </div>
+        <div className="space-y-4">
+          {recentPayments.map((payment) => (
+            <div key={payment.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+              <div className="flex items-center space-x-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${payment.type === 'Received' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                  {payment.type === 'Received' ? <ArrowDownCircle className="w-4 h-4" /> : <ArrowUpCircle className="w-4 h-4" />}
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">{payment.type}</span>
+                  <p className="text-xs text-gray-500">{payment.description}</p>
+                </div>
+              </div>
+              <span className="font-semibold text-gray-800">{payment.amount} {payment.currency}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Market Section */}
+      <div className="w-full max-w-md bg-white rounded-xl p-5 mb-20 shadow-md">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Market</h2>
+        <div className="space-y-4">
+          {marketData.map((item) => (
+            <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-gray-600" />
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">{item.name} ({item.symbol})</span>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <svg className="w-16 h-8" viewBox="0 0 100 50">
+                  <polyline
+                    fill="none"
+                    stroke={item.direction === 'down' ? '#ef4444' : '#22c55e'}
+                    strokeWidth="3"
+                    points={item.trend.map((val, i) => `${(i / (item.trend.length - 1)) * 100},${50 - (val / 20) * 50}`).join(' ')}
+                  />
+                </svg>
+                <span className={`font-semibold ${item.direction === 'down' ? 'text-red-500' : 'text-green-500'}`}>
+                  {item.change} {item.direction === 'down' ? '↓' : '↑'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 w-full max-w-md bg-white rounded-t-3xl p-4 shadow-lg flex justify-around items-center border-t border-gray-100">
+        <button onClick={() => handleNavClick('home')} className={`flex flex-col items-center p-2 rounded-xl transition-colors duration-200 ${activeNavTab === 'home' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Home className="w-6 h-6" />
+          <span className="text-xs mt-1">Home</span>
+        </button>
+        <button onClick={() => handleNavClick('user')} className={`flex flex-col items-center p-2 rounded-xl transition-colors duration-200 ${activeNavTab === 'user' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+          <User className="w-6 h-6" />
+          <span className="text-xs mt-1">Profile</span>
+        </button>
+        <button onClick={() => handleNavClick('trophy')} className={`flex flex-col items-center p-2 rounded-xl transition-colors duration-200 ${activeNavTab === 'trophy' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Trophy className="w-6 h-6" />
+          <span className="text-xs mt-1">Rewards</span>
+        </button>
+        <button onClick={() => handleNavClick('heart')} className={`flex flex-col items-center p-2 rounded-xl transition-colors duration-200 ${activeNavTab === 'heart' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Heart className="w-6 h-6" />
+          <span className="text-xs mt-1">Favorites</span>
+        </button>
+        <button onClick={() => handleNavClick('settings')} className={`flex flex-col items-center p-2 rounded-xl transition-colors duration-200 ${activeNavTab === 'settings' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Settings className="w-6 h-6" />
+          <span className="text-xs mt-1">Settings</span>
+        </button>
+      </div>
+
+      {/* Add Contact Modal */}
+      {addContactModalOpen && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-sm">
+            <h3 className="text-2xl font-bold text-gray-800 mb-5">Add New Contact</h3>
+            <div className="mb-4">
+              <label htmlFor="contactName" className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+              <input
+                id="contactName"
+                type="text"
+                placeholder="e.g., John Doe"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                value={newContactName}
+                onChange={(e) => setNewContactName(e.target.value)}
+              />
+            </div>
+            <div className="mb-6">
+              <label htmlFor="walletAddress" className="block text-sm font-medium text-gray-700 mb-1">Wallet Address</label>
+              <input
+                id="walletAddress"
+                type="text"
+                placeholder="e.g., 0x123...abc"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                value={newContactAddress}
+                onChange={(e) => setNewContactAddress(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCloseAddContactModal}
+                className="px-5 py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveContact}
+                className="px-5 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 font-medium transition-colors"
+              >
+                Add Contact
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;

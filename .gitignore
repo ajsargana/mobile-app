@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Android build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/tmp/
+android/local.properties
+
+# iOS build outputs
+ios/build/
+ios/Pods/
+ios/*.xcworkspace
+ios/*.xcodeproj
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
