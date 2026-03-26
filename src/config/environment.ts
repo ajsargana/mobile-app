@@ -90,6 +90,7 @@ export const API_ENDPOINTS = {
   miningStart: '/api/mining/start',
   miningSubmit: '/api/mining/submit',
   miningCanMine: '/api/mining/can-mine',
+  miningPendingRewards: '/api/mining/pending-rewards',
 
   // Wallet & Transactions
   walletBalance: '/api/wallet/balance',

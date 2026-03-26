@@ -172,16 +172,36 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       }
     };
 
-    // ── WS delta: mining stats + participation refreshed when a block settles ──
+    // ── WS delta: mining stats updated when a block settles (sound only) ──
+    // fetchParticipation is NOT called here — the daily count only resets at UTC
+    // midnight, so polling it on every 2-min block is unnecessary churn.
     const onBlockSettled = () => {
       if (!mountedRef.current) return;
       setMiningStats(miningService.getMiningStats());
-      fetchParticipation();
       soundService.playCoinSound();
     };
 
     networkService.on('blockPending', onBlockPending);
     networkService.on('blockSettled', onBlockSettled);
+
+    // ── UTC midnight reset timer ─────────────────────────────────────────────
+    // Re-fetch participation exactly once when the UTC day rolls over, so the
+    // "Daily limit reached" state clears at midnight and not a block early/late.
+    let midnightTimer: ReturnType<typeof setTimeout>;
+    const scheduleMidnightReset = () => {
+      const now = Date.now();
+      const nextMidnightUTC = Date.UTC(
+        new Date(now).getUTCFullYear(),
+        new Date(now).getUTCMonth(),
+        new Date(now).getUTCDate() + 1,
+      );
+      const delay = nextMidnightUTC - now;
+      midnightTimer = setTimeout(() => {
+        if (mountedRef.current) fetchParticipation();
+        scheduleMidnightReset(); // reschedule for the next day
+      }, delay);
+    };
+    scheduleMidnightReset();
 
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') fetchParticipation();
@@ -191,6 +211,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       mountedRef.current = false;
       handle.cancel();
       sub?.remove();
+      clearTimeout(midnightTimer);
       networkService.off('blockPending', onBlockPending);
       networkService.off('blockSettled', onBlockSettled);
       // Release keep-awake and dismiss mining notification on unmount
@@ -443,6 +464,20 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         >
           <Ionicons name="time-outline" size={18} color={colors.historyBtn} />
           <Text style={[styles.historyBtnText, { color: colors.historyBtnText }]}>Session History</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
+        </TouchableOpacity>
+
+        {/* ── Epoch Rewards button ── */}
+        <TouchableOpacity
+          style={[styles.historyBtn, {
+            backgroundColor: isDark ? 'rgba(39,174,96,0.06)' : 'rgba(39,174,96,0.05)',
+            borderColor: isDark ? 'rgba(39,174,96,0.2)' : 'rgba(39,174,96,0.15)',
+          }]}
+          onPress={() => navigation.navigate('EpochRewards')}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="layers-outline" size={18} color="#27AE60" />
+          <Text style={[styles.historyBtnText, { color: '#27AE60' }]}>Pending &amp; Claimable</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
         </TouchableOpacity>
 

@@ -33,6 +33,7 @@ import { ReceiveTransactionScreen } from './src/components/ReceiveTransactionScr
 import { TransactionHistoryScreen } from './src/components/TransactionHistoryScreen';
 import { TrustLevelScreen } from './src/components/TrustLevelScreen';
 import { MiningHistoryScreen } from './src/components/MiningHistoryScreen';
+import { EpochRewardsScreen } from './src/components/EpochRewardsScreen';
 import { PINEntryScreen } from './src/components/PINEntryScreen';
 import { WalletSetupScreen } from './src/components/WalletSetupScreen';
 import { WalletRestoreScreen } from './src/components/WalletRestoreScreen';
@@ -134,6 +135,7 @@ const AppNavigator = () => {
       <Stack.Screen name="TransactionHistory"   component={TransactionHistoryScreen}  options={{ title: 'Transaction History' }} />
       <Stack.Screen name="TrustLevel"           component={TrustLevelScreen}          options={{ title: 'Trust Level' }} />
       <Stack.Screen name="MiningHistory"        component={MiningHistoryScreen}       options={{ title: 'Session History' }} />
+      <Stack.Screen name="EpochRewards"         component={EpochRewardsScreen}         options={{ headerShown: false }} />
       <Stack.Screen name="SeedPhrase"           component={SeedPhraseScreen}          options={{ title: 'Seed Phrase' }} />
       <Stack.Screen name="ProfileEdit"          component={ProfileEditScreen}         options={{ headerShown: false }} />
       <Stack.Screen name="WalletRestore">
