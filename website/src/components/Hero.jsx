@@ -196,37 +196,38 @@ export default function Hero() {
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.6 }}
+        transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
           width: '100%', maxWidth: 860,
           background: 'rgba(255,255,255,0.025)',
-          borderRadius: 20, overflow: 'hidden',
+          borderRadius: 24, overflow: 'hidden',
           border: '1px solid rgba(255,255,255,0.07)',
+          boxShadow: '0 0 60px rgba(232,160,32,0.06), inset 0 1px 0 rgba(255,255,255,0.06)',
         }}
       >
         {STATS.map((stat, i) => (
           <motion.div
             key={stat.label}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 + i * 0.1 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.75 + i * 0.1, duration: 0.5 }}
             whileHover={{ background: 'rgba(255,255,255,0.04)' }}
             style={{
-              padding: '1.6rem 1rem', textAlign: 'center',
+              padding: '1.75rem 1rem', textAlign: 'center',
               borderRight: i < STATS.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-              background: 'rgba(6,12,24,0.7)', cursor: 'default',
-              transition: 'background 0.2s',
+              background: 'rgba(6,12,24,0.6)', cursor: 'default',
+              transition: 'background 0.25s',
             }}
           >
-            <div style={{ fontFamily: 'Space Mono', fontWeight: 700, fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', color: stat.color, marginBottom: '4px' }}>
+            <div style={{ fontFamily: 'Space Mono', fontWeight: 700, fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', color: stat.color, marginBottom: '6px', lineHeight: 1 }}>
               <Counter to={stat.countTo} suffix={stat.suffix} decimals={stat.decimals} duration={2} />
             </div>
-            <div style={{ color: '#E8EDF5', fontWeight: 600, fontSize: '0.82rem', marginBottom: '2px', fontFamily: 'Space Grotesk' }}>
+            <div style={{ color: '#E8EDF5', fontWeight: 600, fontSize: '0.82rem', marginBottom: '3px', fontFamily: 'Space Grotesk' }}>
               {stat.label}
             </div>
-            <div style={{ color: 'rgba(232,237,245,0.35)', fontSize: '0.72rem' }}>
+            <div style={{ color: 'rgba(232,237,245,0.35)', fontSize: '0.7rem', letterSpacing: '0.02em' }}>
               {stat.sublabel}
             </div>
           </motion.div>
@@ -237,16 +238,19 @@ export default function Hero() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.4 }}
+        transition={{ delay: 1.6 }}
         style={{ position: 'absolute', bottom: '2rem', left: '50%', transform: 'translateX(-50%)' }}
       >
         <motion.div
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
+          animate={{ y: [0, 8, 0] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: [0.45, 0, 0.55, 1] }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
         >
-          <span style={{ color: 'rgba(232,237,245,0.25)', fontSize: '0.7rem', letterSpacing: '0.14em', textTransform: 'uppercase' }}>Scroll</span>
-          <div style={{ width: 1, height: 40, background: 'linear-gradient(to bottom, rgba(232,160,32,0.5), transparent)' }} />
+          <span style={{ color: 'rgba(232,237,245,0.2)', fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: 'Space Grotesk' }}>Scroll</span>
+          <div style={{ width: 1, height: 36, background: 'linear-gradient(to bottom, rgba(232,160,32,0.6), transparent)', borderRadius: 1 }} />
+          <svg width="12" height="6" viewBox="0 0 12 6" fill="none" style={{ opacity: 0.3 }}>
+            <path d="M1 1l5 4 5-4" stroke="#E8A020" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </motion.div>
       </motion.div>
     </section>

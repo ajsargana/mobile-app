@@ -70,9 +70,9 @@ export default function Tokenomics() {
           ].map((s, i) => (
             <motion.div
               key={s.label}
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={inView ? { opacity: 1, scale: 1 } : {}}
-              transition={{ delay: 0.2 + i * 0.08 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ delay: 0.2 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
               className="glass"
               style={{ borderRadius: 16, padding: '1.25rem', textAlign: 'center' }}
             >

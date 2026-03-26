@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useScroll, useSpring } from 'framer-motion'
 import ParticleBackground from './components/ParticleBackground'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
@@ -23,6 +23,8 @@ const pageVariants = {
 }
 const pageTransition = { duration: 0.35, ease: 'easeInOut' }
 
+const Divider = () => <div className="section-divider" />
+
 function HomePage() {
   return (
     <motion.main
@@ -33,12 +35,19 @@ function HomePage() {
       transition={pageTransition}
     >
       <Hero />
+      <Divider />
       <Problem />
+      <Divider />
       <RealBlockchain />
+      <Divider />
       <Features />
+      <Divider />
       <Comparison />
+      <Divider />
       <Tokenomics />
+      <Divider />
       <Download />
+      <Divider />
       <Community />
     </motion.main>
   )
@@ -46,9 +55,19 @@ function HomePage() {
 
 export default function App() {
   const location = useLocation()
+  const { scrollYProgress } = useScroll()
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 30, restDelta: 0.001 })
 
   return (
     <div style={{ background: '#060C18', minHeight: '100vh', color: '#E8EDF5' }}>
+      {/* Scroll progress bar */}
+      <motion.div
+        style={{
+          position: 'fixed', top: 0, left: 0, right: 0, height: '2px',
+          background: 'linear-gradient(90deg, #E8A020, #F5C842, #4FA8D5)',
+          transformOrigin: '0%', scaleX, zIndex: 200,
+        }}
+      />
       <ParticleBackground />
       <CoinCanvas />
       <Navbar />

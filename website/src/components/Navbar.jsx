@@ -3,11 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation } from 'react-router-dom'
 
 const navLinks = [
-  { label: 'Features', href: '#features' },
-  { label: 'Technology', href: '#technology' },
-  { label: 'Tokenomics', href: '#tokenomics' },
-  { label: 'Roadmap', href: '#roadmap' },
-  { label: 'Community', href: '#community' },
+  { label: 'Features',    href: '#features',    id: 'features' },
+  { label: 'Technology',  href: '#technology',  id: 'technology' },
+  { label: 'Tokenomics',  href: '#tokenomics',  id: 'tokenomics' },
+  { label: 'Community',   href: '#community',   id: 'community' },
 ]
 
 const CoinLogo = () => (
@@ -17,11 +16,22 @@ const CoinLogo = () => (
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState('')
   const location = useLocation()
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40)
-    window.addEventListener('scroll', onScroll)
+    const ids = navLinks.map(l => l.id)
+    const onScroll = () => {
+      setScrolled(window.scrollY > 40)
+      const offset = window.scrollY + 120
+      let current = ''
+      for (const id of ids) {
+        const el = document.getElementById(id)
+        if (el && el.offsetTop <= offset) current = id
+      }
+      setActiveSection(current)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
@@ -70,24 +80,39 @@ export default function Navbar() {
 
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5">
-              {navLinks.map((link) => (
-                <button
-                  key={link.label}
-                  onClick={() => handleNavClick(link.href)}
-                  className="cursor-pointer"
-                  style={{
-                    background: 'none', border: 'none',
-                    color: 'rgba(232,237,245,0.7)',
-                    fontFamily: 'Inter', fontSize: '0.9rem', fontWeight: 500,
-                    transition: 'color 0.2s',
-                    padding: '4px 0',
-                  }}
-                  onMouseEnter={e => e.target.style.color = '#E8EDF5'}
-                  onMouseLeave={e => e.target.style.color = 'rgba(232,237,245,0.7)'}
-                >
-                  {link.label}
-                </button>
-              ))}
+              {navLinks.map((link) => {
+                const isActive = activeSection === link.id
+                return (
+                  <button
+                    key={link.label}
+                    onClick={() => handleNavClick(link.href)}
+                    className="cursor-pointer"
+                    style={{
+                      background: 'none', border: 'none',
+                      color: isActive ? '#E8A020' : 'rgba(232,237,245,0.65)',
+                      fontFamily: 'Inter', fontSize: '0.9rem', fontWeight: isActive ? 600 : 500,
+                      transition: 'color 0.25s, font-weight 0.25s',
+                      padding: '4px 0',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#E8EDF5' }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(232,237,245,0.65)' }}
+                  >
+                    {link.label}
+                    {isActive && (
+                      <motion.span
+                        layoutId="nav-underline"
+                        style={{
+                          position: 'absolute', bottom: -2, left: 0, right: 0,
+                          height: '2px', borderRadius: 2,
+                          background: 'linear-gradient(90deg, #E8A020, #F5C842)',
+                        }}
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

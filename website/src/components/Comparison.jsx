@@ -159,12 +159,14 @@ export default function Comparison() {
               initial={{ opacity: 0, x: -20 }}
               animate={inView ? { opacity: 1, x: 0 } : {}}
               transition={{ delay: 0.3 + i * 0.05 }}
+              whileHover={{ background: 'rgba(232,160,32,0.03)' }}
               style={{
                 display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr',
                 padding: '0.9rem 1.5rem',
                 borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
                 background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
                 alignItems: 'center',
+                transition: 'background 0.2s',
               }}
             >
               <div style={{ color: '#E8EDF5', fontSize: '0.9rem', fontFamily: 'Inter', fontWeight: 500 }}>
