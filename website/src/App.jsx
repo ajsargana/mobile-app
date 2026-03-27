@@ -19,7 +19,9 @@ import Terms from './pages/Terms'
 import Cookies from './pages/Cookies'
 
 // Lazy-load Three.js canvas — 875KB, not needed for initial render
-const CoinCanvas = lazy(() => import('./components/CoinCanvas'))
+// Skip entirely on mobile — render loop runs even when coin is scaled to 0
+const isDesktop = typeof window !== 'undefined' && window.innerWidth > 900
+const CoinCanvas = isDesktop ? lazy(() => import('./components/CoinCanvas')) : null
 
 const pageVariants = {
   initial: { opacity: 0, y: 16 },
@@ -78,7 +80,7 @@ export default function App() {
         }}
       />
       <ParticleBackground />
-      <Suspense fallback={null}><CoinCanvas /></Suspense>
+      {CoinCanvas && <Suspense fallback={null}><CoinCanvas /></Suspense>}
       <Navbar />
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
