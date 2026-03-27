@@ -55,7 +55,7 @@ const steps = [
 
 export default function HowItWorks() {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, amount: 0.2 })
   const isMobile = useIsMobile()
 
   const containerStyle = isMobile

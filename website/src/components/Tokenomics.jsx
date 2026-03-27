@@ -22,7 +22,7 @@ const maxReward = halvings[0].reward
 
 export default function Tokenomics() {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, amount: 0.2 })
   const [activeTier, setActiveTier] = useState(null)
 
   return (

@@ -58,7 +58,7 @@ const socials = [
 
 export default function Community() {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
     <section id="community" ref={ref} style={{ position: 'relative', zIndex: 1, padding: '6rem 1rem' }}>

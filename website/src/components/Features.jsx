@@ -79,7 +79,7 @@ const cardVariants = {
 
 export default function Features() {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, amount: 0.2 })
   const [hovered, setHovered] = useState(null)
 
   return (

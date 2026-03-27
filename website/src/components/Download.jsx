@@ -34,7 +34,7 @@ const QR_PLACEHOLDER = ({ color }) => (
 
 export default function Download() {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, amount: 0.2 })
   const isMobile = useIsMobile()
   const [androidHover, setAndroidHover] = useState(false)
   const [iosHover, setIosHover] = useState(false)

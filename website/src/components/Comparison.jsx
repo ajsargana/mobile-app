@@ -84,7 +84,7 @@ function CellValue({ val, isAura }) {
 
 export default function Comparison() {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
     <section id="technology" ref={ref} style={{ position: 'relative', zIndex: 1, padding: '6rem 1rem' }}>

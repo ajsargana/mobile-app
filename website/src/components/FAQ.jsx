@@ -103,7 +103,7 @@ function FAQItem({ faq, index, inView }) {
 
 export default function FAQ() {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
     <section id="faq" ref={ref} style={{ position: 'relative', zIndex: 1, padding: '6rem 1rem' }}
