@@ -126,7 +126,8 @@ export default function Download() {
 
             <motion.a
               href="https://github.com/ajsargana/mobile-app/releases/download/v1.0.1/aura50.apk"
-              download
+              target="_blank"
+              rel="noopener noreferrer"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               className="btn-primary"
