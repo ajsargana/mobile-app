@@ -125,7 +125,7 @@ export default function Download() {
             <QR_PLACEHOLDER color="#E8A020" />
 
             <motion.a
-              href="/downloads/aura50.apk"
+              href="https://github.com/ajsargana/mobile-app/releases/download/v1.0.1/aura50.apk"
               download
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
