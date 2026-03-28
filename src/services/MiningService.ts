@@ -103,6 +103,11 @@ export class MiningService {
     return MiningService.instance;
   }
 
+  /** Used by BackgroundMiningTask to check if mining is currently running. */
+  isMiningActive(): boolean {
+    return this.isMining;
+  }
+
   // Mining Cooldown Check
   private async checkMiningCooldown(): Promise<{
     canMine: boolean;

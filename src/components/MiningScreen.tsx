@@ -19,6 +19,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MiningService } from '../services/MiningService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
 import { NetworkService } from '../services/NetworkService';
+import {
+  enableBackgroundMining,
+  disableBackgroundMining,
+  wasMiningBeforeBackground,
+} from '../tasks/BackgroundMiningTask';
 import { TrustLevel, DeviceMetrics } from '../types';
 import config from '../config/environment';
 import { useTheme } from '../contexts/ThemeContext';
@@ -95,6 +100,8 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const pollingInFlight = useRef(false);
   const btnScale        = useRef(new Animated.Value(1)).current;
   const miningNotifId   = useRef<string | null>(null);
+  // Ref mirrors isMining so AppState callbacks always read the current value
+  const isMiningRef     = useRef(false);
 
   const showAchievementToast = (badgeId: string) => {
     const defs = AchievementService.getInstance().getDefinitions();
@@ -203,8 +210,40 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     };
     scheduleMidnightReset();
 
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') fetchParticipation();
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state === 'active') {
+        fetchParticipation();
+        // Returned to foreground — if we were mining and it stopped, restart
+        if (isMiningRef.current && !miningService.isMiningActive()) {
+          console.log('[MiningScreen] App foregrounded; mining was active but stopped — restarting');
+          const restarted = await miningService.startMining();
+          if (restarted && !miningNotifId.current) {
+            miningNotifId.current = await Notifications.scheduleNotificationAsync({
+              content: {
+                title: 'AURA50 Mining Active',
+                body: 'Tap to return to the app',
+                sticky: true,
+                autoDismiss: false,
+              },
+              trigger: null,
+            });
+          }
+        }
+      } else if (state === 'background' || state === 'inactive') {
+        // Going to background — update notification so it's truthful
+        if (isMiningRef.current && miningNotifId.current) {
+          await Notifications.dismissNotificationAsync(miningNotifId.current);
+          miningNotifId.current = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'AURA50 Mining Active',
+              body: 'Running in background — tap to return',
+              sticky: true,
+              autoDismiss: false,
+            },
+            trigger: null,
+          });
+        }
+      }
     });
 
     return () => {
@@ -245,8 +284,11 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     const success = await miningService.startMining();
     if (success) {
       setIsMining(true);
+      isMiningRef.current = true;
       // Keep screen and JS thread alive while mining
       await activateKeepAwakeAsync('mining');
+      // Register background fetch task — resumes mining if OS kills the process
+      enableBackgroundMining().catch(e => console.warn('[BGMining] enable:', e));
       miningNotifId.current = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'AURA50 Mining Active',
@@ -289,11 +331,14 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   }, []);
 
   const stopMiningKeepAwake = useCallback(async () => {
+    isMiningRef.current = false;
     deactivateKeepAwake('mining');
     if (miningNotifId.current) {
       await Notifications.dismissNotificationAsync(miningNotifId.current);
       miningNotifId.current = null;
     }
+    // Remove background task so OS doesn't restart mining after user stopped it
+    disableBackgroundMining().catch(e => console.warn('[BGMining] disable:', e));
   }, []);
 
   const handlePress = useCallback(async () => {

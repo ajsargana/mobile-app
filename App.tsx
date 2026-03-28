@@ -1,6 +1,8 @@
 // Must be first - ESM and crypto polyfills for React Native
 import './metro.shim';
 import './crypto-polyfill';
+// Register background mining task definition before any component mounts
+import './src/tasks/BackgroundMiningTask';
 
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
