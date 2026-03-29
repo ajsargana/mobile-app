@@ -247,6 +247,13 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
   const [activeScope, setActiveScope] = useState<Scope>('National');
   const [forgersOpen, setForgersOpen] = useState(false);
 
+  // ── Onboarding step 8 ───────────────────────────────────────────────────
+  const ONBOARDING_STEP_KEY = '@aura50_onboarding_v2_step';
+  const [leaderHintReady, setLeaderHintReady] = useState(false);
+  const [leaderSectionTop, setLeaderSectionTop] = useState(0);
+  const leaderSectionRef = useRef<View>(null);
+  const lBounce = useRef(new Animated.Value(0)).current;
+
   // ── Crown pulse animations (one per rank) ────────────────────────────────
   const crown1 = useRef(new Animated.Value(1)).current;
   const crown2 = useRef(new Animated.Value(1)).current;
@@ -276,6 +283,35 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
   const openAvatarPicker = useCallback(() => setShowAvatarPicker(true), []);
 
   useEffect(() => { loadAll(); }, []);
+
+  // Step 8: show leaders hint when onboardingStep === 7
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
+      if (step === '7') {
+        setTimeout(() => {
+          leaderSectionRef.current?.measureInWindow((_x, y) => {
+            setLeaderSectionTop(y);
+            setLeaderHintReady(true);
+          });
+        }, 1000);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!leaderHintReady) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(lBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(lBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [leaderHintReady]);
+
+  const dismissLeaderHint = useCallback(() => {
+    setLeaderHintReady(false);
+    AsyncStorage.setItem(ONBOARDING_STEP_KEY, '8').catch(() => {});
+  }, []);
 
   // Re-fetch leaderboard when scope changes (passes scope as query param)
   useEffect(() => { loadLeaderboard(); }, [activeScope]);
@@ -428,6 +464,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
+    <>
     <ScrollView
       style={[styles.container, { backgroundColor: colors.bg }]}
       contentContainerStyle={{ paddingBottom: 36 }}
@@ -473,7 +510,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
       </LinearGradient>
 
       {/* ── Top Forgers section ── */}
-      <View style={styles.section}>
+      <View ref={leaderSectionRef} style={styles.section}>
 
         {/* Tappable section header — opens/closes dropdown */}
         <TouchableOpacity
@@ -912,6 +949,54 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
         </TouchableWithoutFeedback>
       </Modal>
     </ScrollView>
+
+    {/* ── Step 8: Leaders section highlight ── */}
+    <Modal visible={leaderHintReady} transparent animationType="fade" statusBarTranslucent>
+      <TouchableOpacity style={[{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)' }]} onPress={dismissLeaderHint} activeOpacity={1}>
+        {/* Re-render the Top Forgers header at its position */}
+        <TouchableOpacity
+          style={{
+            position: 'absolute',
+            top: leaderSectionTop > 0 ? leaderSectionTop : 200,
+            left: 16, right: 16,
+            backgroundColor: 'rgba(20,30,45,0.96)',
+            borderRadius: 14, borderWidth: 1,
+            borderColor: 'rgba(255,215,0,0.3)',
+            paddingHorizontal: 16, paddingVertical: 14,
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            elevation: 24,
+          }}
+          onPress={dismissLeaderHint}
+          activeOpacity={0.9}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="trophy" size={18} color="#FFD700" />
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Top Forgers</Text>
+          </View>
+          <Ionicons name="chevron-down" size={18} color="rgba(255,255,255,0.5)" />
+        </TouchableOpacity>
+        {/* Hint badge */}
+        <Animated.View pointerEvents="none" style={{
+          position: 'absolute',
+          top: (leaderSectionTop > 0 ? leaderSectionTop : 200) + 62,
+          left: 24, right: 24, alignItems: 'center',
+          transform: [{ translateY: lBounce }],
+        }}>
+          <View style={{
+            backgroundColor: 'rgba(15,15,15,0.78)', borderRadius: 20,
+            paddingHorizontal: 14, paddingVertical: 9,
+            flexDirection: 'row', alignItems: 'center', gap: 7,
+            borderWidth: 1, borderColor: 'rgba(255,215,0,0.35)',
+          }}>
+            <Ionicons name="star-outline" size={14} color="rgba(255,215,0,0.85)" />
+            <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '500', fontSize: 13 }}>
+              Top the Board to Earn exciting Rewards
+            </Text>
+          </View>
+        </Animated.View>
+      </TouchableOpacity>
+    </Modal>
+    </>
   );
 }
 

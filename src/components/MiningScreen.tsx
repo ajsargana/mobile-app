@@ -10,12 +10,15 @@ import {
   Animated,
   ScrollView,
   InteractionManager,
+  Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { MiningService } from '../services/MiningService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
 import { NetworkService } from '../services/NetworkService';
@@ -40,7 +43,7 @@ import StreakCard from './StreakCard';
 import DailyCheckInCard from './DailyCheckInCard';
 import AchievementsSheet from './AchievementsSheet';
 
-const { height } = Dimensions.get('window');
+const { height, width: SCREEN_W } = Dimensions.get('window');
 const BTN_SIZE = 104;
 
 interface MiningScreenProps {
@@ -79,6 +82,7 @@ const RippleRing = React.memo(({ delay }: { delay: number }) => {
 
 export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [isMining,        setIsMining]       = useState(false);
   const [isInitializing,  setIsInitializing] = useState(true);
   const [deviceMetrics,   setDeviceMetrics]  = useState<DeviceMetrics>({
@@ -101,13 +105,29 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const [toastText,         setToastText]         = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
 
-  // Mining hint (step 2 of onboarding — shown after market hint is completed)
-  const MINING_HINT_KEY = '@aura50_mining_hint_seen';
+  // ── Onboarding state (steps 5-7 live on this screen) ─────────────────────
+  const ONBOARDING_STEP_KEY = '@aura50_onboarding_v2_step';
+  const MINING_HINT_KEY     = '@aura50_mining_hint_seen'; // legacy compat
+
+  const [onboardingStep, setOnboardingStep] = useState(-1);
+
+  // Step 5: Mining button
   const [showMiningHint, setShowMiningHint] = useState(false);
   const [miningBtnTop,    setMiningBtnTop]    = useState(0);
   const [miningBtnHeight, setMiningBtnHeight] = useState(BTN_SIZE);
   const miningHintBounce = useRef(new Animated.Value(0)).current;
   const miningBtnRef     = useRef<View>(null);
+
+  // Step 6: Participation limit card
+  const limitCardRef = useRef<View>(null);
+  const [limitCardTop,    setLimitCardTop]    = useState(0);
+  const [limitCardHeight, setLimitCardHeight] = useState(0);
+  const [limitCardReady,  setLimitCardReady]  = useState(false);
+  const limitBounce = useRef(new Animated.Value(0)).current;
+
+  // Step 7: Leaderboard tab button
+  const [leaderHintReady, setLeaderHintReady] = useState(false);
+  const leaderBounce = useRef(new Animated.Value(0)).current;
 
   const mountedRef      = useRef(true);
   const pollingInFlight = useRef(false);
@@ -161,19 +181,10 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   useEffect(() => {
     mountedRef.current = true;
 
-    // Show mining hint (step 2) if market hint was completed but mining hint not yet seen
-    AsyncStorage.multiGet(['@aura50_market_hint_seen', MINING_HINT_KEY]).then(([[, market], [, mining]]) => {
-      if (market && !mining && mountedRef.current) {
-        // Delay so the screen finishes animating in before we show the overlay
-        setTimeout(() => {
-          miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
-            if (mountedRef.current) {
-              setMiningBtnTop(y);
-              setMiningBtnHeight(h);
-              setShowMiningHint(true);
-            }
-          });
-        }, 500);
+    // Load onboarding step (initial mount)
+    AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
+      if (mountedRef.current) {
+        setOnboardingStep(step !== null ? parseInt(step, 10) : -1);
       }
     });
 
@@ -300,23 +311,98 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     };
   }, []);
 
-  // Mining hint bounce
+  // Re-read onboarding step when screen gains focus
+  // Only advances (Math.max) to prevent stale reads from going backwards
+  // Skips entirely once onboarding is complete (step >= 8)
+  useFocusEffect(useCallback(() => {
+    AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
+      if (!mountedRef.current || step === null) return;
+      const n = parseInt(step, 10);
+      if (n >= 8) { setOnboardingStep(8); return; } // fast exit when done
+      setOnboardingStep(prev => (prev < 0 || n > prev) ? n : prev);
+    });
+  }, []));
+
+  // Step 5: measure mining button when step is active
+  useEffect(() => {
+    if (onboardingStep !== 4) return;
+    const t = setTimeout(() => {
+      miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
+        if (mountedRef.current) {
+          setMiningBtnTop(y); setMiningBtnHeight(h); setShowMiningHint(true);
+        }
+      });
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [onboardingStep]);
+
+  // Step 5 bounce
   useEffect(() => {
     if (!showMiningHint) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(miningHintBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
-        Animated.timing(miningHintBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
-      ])
-    );
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(miningHintBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(miningHintBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
     loop.start();
     return () => loop.stop();
   }, [showMiningHint]);
 
+  // Step 6: measure participation card
+  useEffect(() => {
+    if (onboardingStep !== 5) return;
+    const t = setTimeout(() => {
+      limitCardRef.current?.measureInWindow((_x, y, _w, h) => {
+        if (mountedRef.current) { setLimitCardTop(y); setLimitCardHeight(h); setLimitCardReady(true); }
+      });
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [onboardingStep]);
+
+  // Step 6 bounce
+  useEffect(() => {
+    if (!limitCardReady) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(limitBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(limitBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [limitCardReady]);
+
+  // Step 7: leaderboard tab hint
+  useEffect(() => {
+    if (onboardingStep !== 6) return;
+    const t = setTimeout(() => { if (mountedRef.current) setLeaderHintReady(true); }, 1000);
+    return () => clearTimeout(t);
+  }, [onboardingStep]);
+
+  // Step 7 bounce
+  useEffect(() => {
+    if (!leaderHintReady) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(leaderBounce, { toValue: -8, duration: 500, useNativeDriver: true }),
+      Animated.timing(leaderBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [leaderHintReady]);
+
+  const advanceOnboarding = useCallback((fromStep: number) => {
+    const next = fromStep + 1;
+    setOnboardingStep(next);
+    AsyncStorage.setItem(ONBOARDING_STEP_KEY, String(next)).catch(() => {});
+  }, []);
+
   const dismissMiningHint = useCallback(() => {
     setShowMiningHint(false);
-    AsyncStorage.setItem(MINING_HINT_KEY, 'true').catch(() => {});
-  }, []);
+    AsyncStorage.setItem(MINING_HINT_KEY, 'true').catch(() => {}); // legacy compat
+    advanceOnboarding(4); // → step 5 (participation limit card)
+  }, [advanceOnboarding]);
+
+  const dismissLimitHint = useCallback(() => {
+    setLimitCardReady(false);
+    advanceOnboarding(5); // → step 6 (leaderboard button)
+  }, [advanceOnboarding]);
 
   // ── Guards ───────────────────────────────────────────────────────────────
   const canStartMining = useCallback((): boolean => {
@@ -460,6 +546,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const toastTranslate = toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-60, 0] });
 
   return (
+    <>
     <LinearGradient colors={gradientColors} style={styles.fill}>
 
       {/* ── Achievement toast ── */}
@@ -529,6 +616,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       {/* ── Participation progress ── */}
       <View style={styles.bottomSection}>
 
+        <View ref={limitCardRef}>
         <View style={[styles.participationCard, {
           backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
           borderColor: isDark ? 'rgba(52,152,219,0.15)' : 'rgba(37,99,235,0.12)',
@@ -551,6 +639,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           {limitReached && (
             <Text style={[styles.limitNote, { color: colors.danger }]}>Daily limit reached — resets at UTC midnight</Text>
           )}
+        </View>
         </View>
 
         {/* ── Streak & Check-In ── */}
@@ -595,53 +684,136 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       </View>
       </ScrollView>
 
-      {/* ── Mining Hint Backdrop (step 2 of onboarding) ── */}
-      {showMiningHint && miningBtnTop > 0 && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          {/* Top dim */}
-          <View style={{
-            position: 'absolute', top: 0, left: 0, right: 0,
-            height: Math.max(0, miningBtnTop - 28),
-            backgroundColor: 'rgba(0,0,0,0.65)',
-          }} />
-          {/* Bottom dim */}
-          <View style={{
-            position: 'absolute',
-            top: miningBtnTop + miningBtnHeight + 28,
-            left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.65)',
-          }} />
-          {/* Hint badge above button */}
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              top: Math.max(40, miningBtnTop - 56),
-              left: 24, right: 24,
-              alignItems: 'center',
-              transform: [{ translateY: miningHintBounce }],
-            }}
-          >
-            <View style={{
-              backgroundColor: 'rgba(20,20,20,0.75)',
-              borderRadius: 20,
-              paddingHorizontal: 16,
-              paddingVertical: 10,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 7,
-              borderWidth: 1,
-              borderColor: 'rgba(93,173,226,0.35)',
-            }}>
-              <Ionicons name="flash-outline" size={14} color="rgba(100,200,255,0.8)" />
-              <Text style={{ color: 'rgba(255,255,255,0.75)', fontWeight: '500', fontSize: 13 }}>
-                Tap to start forging A50
-              </Text>
-            </View>
-          </Animated.View>
-        </View>
-      )}
     </LinearGradient>
+
+    {/* ════════════════════════════════════════════════════════════════
+        ONBOARDING MODALS (steps 5-7 live on this screen)
+    ════════════════════════════════════════════════════════════════ */}
+
+    {/* ── Step 5: Mining button highlight ── */}
+    <Modal visible={showMiningHint && miningBtnTop > 0} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      {/* Re-render the circular mining button at its exact screen position */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          top: miningBtnTop,
+          left: SCREEN_W / 2 - BTN_SIZE / 2,
+          width: BTN_SIZE, height: BTN_SIZE, borderRadius: BTN_SIZE / 2,
+          backgroundColor: colors.miningBtn,
+          alignItems: 'center', justifyContent: 'center',
+          elevation: 24,
+          shadowColor: '#3498DB', shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.4, shadowRadius: 14,
+        }}
+        onPress={() => {
+          dismissMiningHint();
+          setTimeout(() => handlePress(), 400); // start mining after modal closes
+        }}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="flash-outline" size={42} color="#FFFFFF" />
+      </TouchableOpacity>
+      {/* Hint badge above button */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute',
+        top: Math.max(40, miningBtnTop - 58),
+        left: 24, right: 24, alignItems: 'center',
+        transform: [{ translateY: miningHintBounce }],
+      }}>
+        <View style={mStyles.hintBadge}>
+          <Ionicons name="flash-outline" size={14} color="rgba(100,200,255,0.85)" />
+          <Text style={mStyles.hintBadgeText}>Tap to start mining</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── Step 6: Participation limit card highlight ── */}
+    <Modal visible={onboardingStep === 5 && limitCardReady} transparent animationType="fade" statusBarTranslucent>
+      <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} onPress={dismissLimitHint} activeOpacity={1} />
+      {/* Re-render the card at measured position */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          top: limitCardTop, left: 24, right: 24,
+          backgroundColor: isDark ? 'rgba(30,40,55,0.97)' : 'rgba(240,248,255,0.97)',
+          borderRadius: 14, borderWidth: 1,
+          borderColor: isDark ? 'rgba(52,152,219,0.3)' : 'rgba(37,99,235,0.2)',
+          padding: 16, elevation: 24,
+          shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.35, shadowRadius: 12,
+        }}
+        onPress={dismissLimitHint}
+        activeOpacity={0.9}
+      >
+        <View style={styles.participationRow}>
+          <Text style={[styles.participationLabel, { color: colors.participationLabel }]}>PARTICIPATED TODAY</Text>
+          <Text style={[styles.participationValue, { color: limitReached ? colors.danger : colors.participationValue }]}>
+            {dailyCount} / {dailyLimit}
+          </Text>
+        </View>
+        <View style={[styles.progressTrack, { backgroundColor: colors.progressTrack, marginTop: 8 }]}>
+          <View style={[styles.progressFill, {
+            width: `${progressFraction * 100}%` as any,
+            backgroundColor: limitReached ? colors.danger : colors.accentAlt,
+          }]} />
+        </View>
+      </TouchableOpacity>
+      {/* Hint badge above card */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute',
+        top: Math.max(50, limitCardTop - 58),
+        left: 24, right: 24, alignItems: 'center',
+        transform: [{ translateY: limitBounce }],
+      }}>
+        <View style={mStyles.hintBadge}>
+          <Ionicons name="trophy-outline" size={14} color="rgba(255,220,100,0.85)" />
+          <Text style={mStyles.hintBadgeText}>Daily limit · achieve Trophy to Increase · tap to continue</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── Step 7: Leaderboard tab button highlight ── */}
+    <Modal visible={onboardingStep === 6 && leaderHintReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      {/* Re-render the Leaderboard tab at its approximate position (index 2 of 5) */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom,
+          left: (SCREEN_W / 5) * 2,
+          width: SCREEN_W / 5, height: 60,
+          alignItems: 'center', justifyContent: 'center',
+          backgroundColor: colors.tabBg,
+          borderTopLeftRadius: 6, borderTopRightRadius: 6,
+          elevation: 24,
+        }}
+        onPress={() => {
+          setLeaderHintReady(false);
+          advanceOnboarding(6); // → step 7 (LeaderboardScreen)
+          navigation.navigate('Leaderboard');
+        }}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="trophy-outline" size={24} color={colors.tabInactive} />
+        <Text style={{ color: colors.tabInactive, fontSize: 10, marginTop: 2, fontWeight: '500' }}>Leaderboard</Text>
+      </TouchableOpacity>
+      {/* Hint badge above */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute',
+        bottom: insets.bottom + 68,
+        left: (SCREEN_W / 5) * 2 - 40,
+        right: SCREEN_W - (SCREEN_W / 5) * 4,
+        alignItems: 'center',
+        transform: [{ translateY: leaderBounce }],
+      }}>
+        <View style={mStyles.hintBadge}>
+          <Ionicons name="trophy-outline" size={14} color="rgba(255,220,100,0.85)" />
+          <Text style={mStyles.hintBadgeText}>Check the Leaderboard</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+    </>
   );
 };
 
@@ -805,4 +977,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#85B8D5',
   },
+});
+
+// Hint badge styles for onboarding Modals
+const mStyles = StyleSheet.create({
+  hintBadge: {
+    backgroundColor: 'rgba(15,15,15,0.78)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(93,173,226,0.35)',
+  },
+  hintBadgeText: { color: 'rgba(255,255,255,0.82)', fontWeight: '500', fontSize: 13 },
 });

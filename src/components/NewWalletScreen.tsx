@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 const SCREEN_H = Dimensions.get('window').height;
+const SCREEN_W = Dimensions.get('window').width;
 import { Svg, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -150,16 +151,40 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   const [unlockedCount,     setUnlockedCount]     = useState(0);
   const [totalAchievements, setTotalAchievements] = useState(0);
 
-  // Market hint (one-time onboarding nudge)
-  const MARKET_HINT_KEY = '@aura50_market_hint_seen';
-  const [showMarketHint, setShowMarketHint] = useState(false);
-  const [marketReady, setMarketReady]   = useState(false); // true once scrolled + measured
+  // ── Onboarding (8-step guided tour) ──────────────────────────────────────
+  const ONBOARDING_STEP_KEY = '@aura50_onboarding_v2_step';
+  const MARKET_HINT_KEY     = '@aura50_market_hint_seen'; // legacy compat
+
+  const [onboardingStep, setOnboardingStep] = useState(-1); // -1 = not loaded
+
+  // Step 1: Hero card
+  const heroCardRef  = useRef<View>(null);
+  const [heroTop,    setHeroTop]    = useState(0);
+  const [heroHeight, setHeroHeight] = useState(0);
+  const [heroReady,  setHeroReady]  = useState(false);
+  const heroBounce = useRef(new Animated.Value(0)).current;
+
+  // Step 2: Avatar
+  const avatarRef = useRef<View>(null);
+  const [avatarTop,  setAvatarTop]  = useState(0);
+  const [avatarLeft, setAvatarLeft] = useState(0);
+  const [avatarSz,   setAvatarSz]   = useState(40);
+  const [avatarReady, setAvatarReady] = useState(false);
+  const avatarBounce = useRef(new Animated.Value(0)).current;
+  const waitingForProfileReturn = useRef(false);
+
+  // Step 3: Market card
+  const [marketReady, setMarketReady]     = useState(false);
   const hintBounce    = useRef(new Animated.Value(0)).current;
   const marketCardRef = useRef<View>(null);
   const scrollRef     = useRef<ScrollView>(null);
-  const [marketTop, setMarketTop]       = useState(SCREEN_H + 100);
+  const [marketTop,    setMarketTop]    = useState(SCREEN_H + 100);
   const [marketHeight, setMarketHeight] = useState(0);
-  const [marketLayoutY, setMarketLayoutY] = useState(0); // position in scroll content
+  const [marketLayoutY, setMarketLayoutY] = useState(0);
+
+  // Step 4: Forge button (tab bar)
+  const [forgeHintReady, setForgeHintReady] = useState(false);
+  const forgeBounce = useRef(new Animated.Value(0)).current;
 
   const mountedRef     = useRef(true);
   const marketTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -171,10 +196,25 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
     mountedRef.current = true;
     loadCoins().then(() => loadAllData());
     marketTimer.current = setInterval(() => { if (mountedRef.current) fetchMarket(coinIds); }, MARKET_POLL_MS);
-    // Show market hint once per install
-    AsyncStorage.getItem(MARKET_HINT_KEY).then(seen => {
-      if (!seen && mountedRef.current) setShowMarketHint(true);
-    });
+    // Load onboarding step (migrate from legacy keys)
+    AsyncStorage.multiGet([ONBOARDING_STEP_KEY, MARKET_HINT_KEY, '@aura50_mining_hint_seen']).then(
+      ([[, newStep], [, mktSeen], [, miningSeen]]) => {
+        if (!mountedRef.current) return;
+        if (newStep !== null) {
+          setOnboardingStep(parseInt(newStep, 10));
+        } else if (miningSeen) {
+          // Legacy: both old hints completed — skip onboarding
+          setOnboardingStep(8);
+          AsyncStorage.setItem(ONBOARDING_STEP_KEY, '8');
+        } else if (mktSeen) {
+          // Legacy: market hint done, mining hint not — start at step 4
+          setOnboardingStep(4);
+          AsyncStorage.setItem(ONBOARDING_STEP_KEY, '4');
+        } else {
+          setOnboardingStep(0); // fresh install — start from step 1
+        }
+      }
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {
       mountedRef.current = false;
@@ -183,54 +223,110 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
     };
   }, []);
 
-  // When hint is needed + layout Y known → auto-scroll then measure screen position
+  const advanceOnboarding = useCallback((fromStep: number) => {
+    const next = fromStep + 1;
+    setOnboardingStep(next);
+    AsyncStorage.setItem(ONBOARDING_STEP_KEY, String(next)).catch(() => {});
+  }, []);
+
+  // Step 1: measure hero card after 1.5 s delay
   useEffect(() => {
-    if (!showMarketHint || marketLayoutY === 0) return;
-    const t1 = setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(0, marketLayoutY - 24), animated: true });
-    }, 300);
-    const t2 = setTimeout(() => {
-      marketCardRef.current?.measureInWindow((_x, y, _w, h) => {
+    if (onboardingStep !== 0) return;
+    const t = setTimeout(() => {
+      heroCardRef.current?.measureInWindow((_x, y, _w, h) => {
+        if (mountedRef.current) { setHeroTop(y); setHeroHeight(h); setHeroReady(true); }
+      });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [onboardingStep]);
+
+  useEffect(() => {
+    if (!heroReady) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(heroBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(heroBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [heroReady]);
+
+  // Step 2: measure avatar
+  useEffect(() => {
+    if (onboardingStep !== 1) return;
+    const t = setTimeout(() => {
+      avatarRef.current?.measureInWindow((x, y, w, h) => {
         if (mountedRef.current) {
-          setMarketTop(y);
-          setMarketHeight(h);
-          setMarketReady(true);
+          setAvatarLeft(x); setAvatarTop(y); setAvatarSz(Math.max(w, h, 40));
+          setAvatarReady(true);
         }
       });
-    }, 900); // wait for scroll to settle
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [showMarketHint, marketLayoutY]);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [onboardingStep]);
 
-  // Bounce animation — only once market is on-screen
+  useEffect(() => {
+    if (!avatarReady) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(avatarBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(avatarBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [avatarReady]);
+
+  // Step 3: market card — scroll then measure (1s delay before scroll, 1.9s before measure)
+  useEffect(() => {
+    if (onboardingStep !== 2 || marketLayoutY === 0) return;
+    const t1 = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, marketLayoutY - 24), animated: true });
+    }, 1000);
+    const t2 = setTimeout(() => {
+      marketCardRef.current?.measureInWindow((_x, y, _w, h) => {
+        if (mountedRef.current) { setMarketTop(y); setMarketHeight(h); setMarketReady(true); }
+      });
+    }, 1900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [onboardingStep, marketLayoutY]);
+
   useEffect(() => {
     if (!marketReady) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(hintBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
-        Animated.timing(hintBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
-      ])
-    );
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(hintBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(hintBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
     loop.start();
     return () => loop.stop();
   }, [marketReady]);
 
+  // Step 4: forge button hint (tab bar)
+  useEffect(() => {
+    if (onboardingStep !== 3) return;
+    const t = setTimeout(() => { if (mountedRef.current) setForgeHintReady(true); }, 1000);
+    return () => clearTimeout(t);
+  }, [onboardingStep]);
+
+  useEffect(() => {
+    if (!forgeHintReady) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(forgeBounce, { toValue: 8, duration: 500, useNativeDriver: true }),
+      Animated.timing(forgeBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [forgeHintReady]);
+
   const dismissMarketHint = useCallback(() => {
-    setShowMarketHint(false);
+    if (onboardingStep !== 2) return; // guard: only advance during step 3
     setMarketReady(false);
-    AsyncStorage.setItem(MARKET_HINT_KEY, 'true').catch(() => {});
-    // Step 2 of onboarding: navigate to Forge (Mining) tab
-    navigation.navigate('Mining');
-  }, [navigation]);
+    advanceOnboarding(2); // → step 3 active (forge button)
+  }, [onboardingStep, advanceOnboarding]);
 
   const measureMarket = useCallback(() => {
-    if (!showMarketHint) return;
+    if (onboardingStep !== 2) return;
     marketCardRef.current?.measureInWindow((_x, y, _w, h) => {
-      if (mountedRef.current && y > 0) {
-        setMarketTop(y);
-        setMarketHeight(h);
-      }
+      if (mountedRef.current && y > 0) { setMarketTop(y); setMarketHeight(h); }
     });
-  }, [showMarketHint]);
+  }, [onboardingStep]);
 
   // Re-fetch market whenever coinIds changes
   useEffect(() => {
@@ -425,7 +521,16 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
     NotificationService.getInstance().getUnreadCount().then(unread => {
       setNotificationCount(unread);
     });
-  }, [loadProfile, loadAchievements]));
+    // Step 2: advance when returning from ProfileEdit (1s delay)
+    if (waitingForProfileReturn.current) {
+      waitingForProfileReturn.current = false;
+      setTimeout(() => {
+        AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
+          if (step === '1' && mountedRef.current) advanceOnboarding(1);
+        });
+      }, 1000);
+    }
+  }, [loadProfile, loadAchievements, advanceOnboarding]));
 
   // ── Refresh ─────────────────────────────────────────────────────────────────
   const onRefresh = useCallback(async () => {
@@ -473,9 +578,13 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           {/* Avatar — tap to open ProfileEditScreen */}
+          <View ref={avatarRef}>
           <TouchableOpacity
             style={[styles.avatarCircle, { backgroundColor: isDark ? 'rgba(93,173,226,0.18)' : '#DBEAFE' }]}
-            onPress={() => navigation.navigate('ProfileEdit')}
+            onPress={() => {
+              if (onboardingStep === 1) waitingForProfileReturn.current = true;
+              navigation.navigate('ProfileEdit');
+            }}
             activeOpacity={0.8}
           >
             {profileUri ? (
@@ -484,6 +593,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
               <Ionicons name="person-outline" size={20} color={colors.accent} />
             )}
           </TouchableOpacity>
+          </View>
           <Text style={[styles.greetingText, { color: colors.textPrimary }]}>
             {getGreeting()}{userName ? `, ${userName}` : ''}
           </Text>
@@ -502,7 +612,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       </View>
 
       {/* ── Physical Card ── */}
-      <View style={styles.cardWrapper}>
+      <View ref={heroCardRef} style={styles.cardWrapper}>
         <LinearGradient
           colors={['#0f0c29', '#302b63', '#24243e']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -865,23 +975,119 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       </Modal>
     </ScrollView>
 
-    {/* ── Market Hint Backdrop — full-screen dim, market card floats above it ── */}
-    <Modal visible={showMarketHint && marketReady} transparent animationType="fade" statusBarTranslucent>
-      {/* Full-screen dim blocks everything */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+    {/* ════════════════════════════════════════════════════════════════
+        ONBOARDING MODALS (steps 1-4 live on this screen)
+    ════════════════════════════════════════════════════════════════ */}
 
-      {/* Market card re-rendered at its exact screen position — sits above the dim */}
+    {/* ── Step 1: Hero card highlight ── */}
+    <Modal visible={onboardingStep === 0 && heroReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      {/* Re-render card at measured position */}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => { setHeroReady(false); advanceOnboarding(0); }}
+        style={{
+          position: 'absolute',
+          top: heroTop, left: 16, right: 16,
+          borderRadius: 20, overflow: 'hidden',
+          elevation: 24,
+          shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.4, shadowRadius: 16,
+        }}
+      >
+        <LinearGradient colors={['#0f0c29', '#302b63', '#24243e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.physicalCard}>
+          <View style={styles.cardCircle1} /><View style={styles.cardCircle2} />
+          <View style={styles.cardTopRow}>
+            <View>
+              <Text style={styles.cardLogoText}>AURA 50</Text>
+              <Text style={styles.cardLogoSub}>Blockchain Wallet</Text>
+            </View>
+            <View style={styles.chip}>
+              <View style={styles.chipH} /><View style={styles.chipH} /><View style={styles.chipH} />
+              <View style={styles.chipV} />
+            </View>
+          </View>
+          <View style={styles.balanceRow}>
+            <Text style={styles.balanceText} adjustsFontSizeToFit numberOfLines={1}>
+              {showBalance ? formatBalance(balance) : '****.****.**'}
+            </Text>
+          </View>
+          <Text style={styles.balanceCurrency}>A50</Text>
+          <View style={styles.cardBottom}>
+            <Text style={styles.cardHolderName}>{(userName || 'AURA50 USER').toUpperCase()}</Text>
+            <View style={styles.cardBottomRight}>
+              <View style={styles.trophyBtn}>
+                <Ionicons name="trophy" size={13} color="#F1C40F" />
+                <Text style={styles.trophyCount}>{unlockedCount}/{totalAchievements}</Text>
+              </View>
+              <View style={styles.trustBadge}>
+                <Text style={styles.trustBadgeText}>{trustLabel}</Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+      {/* Hint badge below card */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute', top: heroTop + heroHeight + 14,
+        left: 24, right: 24, alignItems: 'center',
+        transform: [{ translateY: heroBounce }],
+      }}>
+        <View style={styles.hintBadge}>
+          <Ionicons name="trophy-outline" size={14} color="rgba(255,220,120,0.85)" />
+          <Text style={styles.hintBadgeText}>See your balance and trophy here · tap to continue</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── Step 2: Avatar / profile icon highlight ── */}
+    <Modal visible={onboardingStep === 1 && avatarReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      {/* Re-render avatar at measured position */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          top: avatarTop, left: avatarLeft,
+          width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2,
+          backgroundColor: isDark ? 'rgba(93,173,226,0.18)' : '#DBEAFE',
+          alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+          elevation: 24,
+        }}
+        onPress={() => {
+          setAvatarReady(false);
+          waitingForProfileReturn.current = true;
+          navigation.navigate('ProfileEdit');
+        }}
+        activeOpacity={0.85}
+      >
+        {profileUri
+          ? <Image source={{ uri: profileUri }} style={{ width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }} />
+          : <Ionicons name="person-outline" size={20} color={colors.accent} />
+        }
+      </TouchableOpacity>
+      {/* Hint badge below avatar */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute', top: avatarTop + avatarSz + 10,
+        left: 16, right: 16, alignItems: 'flex-start',
+        paddingLeft: Math.max(0, avatarLeft - 16),
+        transform: [{ translateY: avatarBounce }],
+      }}>
+        <View style={styles.hintBadge}>
+          <Ionicons name="person-outline" size={14} color="rgba(100,200,255,0.85)" />
+          <Text style={styles.hintBadgeText}>Set your name and Photo · tap to open</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── Step 3: Market card highlight ── */}
+    <Modal visible={onboardingStep === 2 && marketReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
       <View style={{
-        position: 'absolute',
-        top: marketTop, left: 16, right: 16,
-        backgroundColor: colors.card,
-        borderRadius: 16,
-        padding: 16,
+        position: 'absolute', top: marketTop, left: 16, right: 16,
+        backgroundColor: colors.card, borderRadius: 16, padding: 16,
         elevation: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.4,
-        shadowRadius: 16,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4, shadowRadius: 16,
       }}>
         <View style={[styles.sectionHeader, { marginBottom: 10 }]}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Market</Text>
@@ -890,8 +1096,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           const pct  = coin.price_change_percentage_24h ?? 0;
           const isUp = pct >= 0;
           return (
-            <TouchableOpacity
-              key={coin.id}
+            <TouchableOpacity key={coin.id}
               style={[styles.marketRow, { borderBottomColor: colors.marketRowBorder }]}
               onPress={() => { dismissMarketHint(); setSelectedCoin(coin); }}
               activeOpacity={0.75}
@@ -901,8 +1106,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
                   ? <Image source={{ uri: coin.image }} style={styles.coinIcon} />
                   : <View style={[styles.coinIconFallback, { backgroundColor: colors.coinIconFallbackBg }]}>
                       <Text style={[styles.coinIconLetter, { color: colors.coinIconLetter }]}>{coin.symbol.charAt(0).toUpperCase()}</Text>
-                    </View>
-                }
+                    </View>}
                 <View>
                   <Text style={[styles.coinName, { color: colors.coinName }]}>{coin.name}</Text>
                   <Text style={[styles.coinSymbol, { color: colors.coinSymbol }]}>{coin.symbol.toUpperCase()}</Text>
@@ -924,19 +1128,56 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           );
         })}
       </View>
-
-      {/* Hint badge above the floating card */}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.marketHintContainer,
-          { top: Math.max(insets.top + 10, marketTop - 50) },
-          { transform: [{ translateY: hintBounce }] },
-        ]}
-      >
+      <Animated.View pointerEvents="none" style={[
+        styles.marketHintContainer,
+        { top: Math.max(insets.top + 10, marketTop - 50) },
+        { transform: [{ translateY: hintBounce }] },
+      ]}>
         <View style={styles.marketHintBadge}>
           <Ionicons name="bar-chart-outline" size={14} color="rgba(255,220,120,0.85)" />
-          <Text style={styles.marketHintText}>Tap a coin to explore · then Forge</Text>
+          <Text style={styles.marketHintText}>See trends · tap a coin to explore</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── Step 4: Forge (tab bar) button highlight ── */}
+    <Modal visible={onboardingStep === 3 && forgeHintReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      {/* Re-render the Forge tab button at its approximate position */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom,
+          left: (SCREEN_W / 5) * 1,
+          width: SCREEN_W / 5,
+          height: 60,
+          alignItems: 'center', justifyContent: 'center',
+          backgroundColor: colors.tabBg,
+          borderTopLeftRadius: 6, borderTopRightRadius: 6,
+          elevation: 24,
+        }}
+        onPress={() => {
+          setForgeHintReady(false);
+          advanceOnboarding(3); // → step 4 (MiningScreen)
+          navigation.navigate('Mining');
+        }}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="flash" size={24} color={colors.tabActive} />
+        <Text style={{ color: colors.tabActive, fontSize: 10, marginTop: 2, fontWeight: '600' }}>Forge</Text>
+      </TouchableOpacity>
+      {/* Hint badge above the forge tab */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute',
+        bottom: insets.bottom + 68,
+        left: (SCREEN_W / 5) * 1 - 30,
+        right: SCREEN_W - (SCREEN_W / 5) * 3,
+        alignItems: 'center',
+        transform: [{ translateY: forgeBounce }],
+      }}>
+        <View style={styles.hintBadge}>
+          <Ionicons name="flash-outline" size={14} color="rgba(100,200,255,0.85)" />
+          <Text style={styles.hintBadgeText}>Mine coins here</Text>
         </View>
       </Animated.View>
     </Modal>
@@ -1022,6 +1263,20 @@ const styles = StyleSheet.create({
   coinIcon: { width: 34, height: 34, borderRadius: 17 },
   coinIconFallback: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center' },
   coinIconLetter: { fontSize: 14, fontWeight: '700', color: '#374151' },
+  // Generic onboarding hint badge
+  hintBadge: {
+    backgroundColor: 'rgba(15,15,15,0.78)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(93,173,226,0.35)',
+  },
+  hintBadgeText: { color: 'rgba(255,255,255,0.82)', fontWeight: '500', fontSize: 13 },
+
   // Market hint
   marketHintContainer: { position: 'absolute', left: 24, right: 24, alignItems: 'center' },
   marketHintBadge: {
