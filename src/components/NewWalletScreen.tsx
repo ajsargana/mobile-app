@@ -1069,7 +1069,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         onPress={() => { setHeroReady(false); advanceOnboarding(0); }}
         style={{
           position: 'absolute',
-          top: heroTop, left: 16, right: 16,
+          top: heroTop + 12, left: 16, right: 16,
           borderRadius: 20, overflow: 'hidden',
           elevation: 24,
           shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
@@ -1110,7 +1110,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       </TouchableOpacity>
       {/* Hint badge below card */}
       <Animated.View pointerEvents="none" style={{
-        position: 'absolute', top: heroTop + heroHeight + 14,
+        position: 'absolute', top: heroTop + 12 + heroHeight + 14,
         left: 24, right: 24, alignItems: 'center',
         transform: [{ translateY: heroBounce }],
       }}>
@@ -1128,7 +1128,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       <TouchableOpacity
         style={{
           position: 'absolute',
-          top: avatarTop, left: avatarLeft,
+          top: avatarTop + 12, left: avatarLeft,
           width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2,
           backgroundColor: isDark ? 'rgba(93,173,226,0.18)' : '#DBEAFE',
           alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
@@ -1148,7 +1148,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       </TouchableOpacity>
       {/* Hint badge below avatar */}
       <Animated.View pointerEvents="none" style={{
-        position: 'absolute', top: avatarTop + avatarSz + 10,
+        position: 'absolute', top: avatarTop + 12 + avatarSz + 10,
         left: 16, right: 16, alignItems: 'flex-start',
         paddingLeft: Math.max(0, avatarLeft - 16),
         transform: [{ translateY: avatarBounce }],
@@ -1164,7 +1164,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
     <Modal visible={onboardingStep === 2 && marketReady} transparent animationType="fade" statusBarTranslucent>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
       <View style={{
-        position: 'absolute', top: marketTop, left: 16, right: 16,
+        position: 'absolute', top: marketTop + 12, left: 16, right: 16,
         backgroundColor: colors.card, borderRadius: 16, padding: 16,
         elevation: 24,
         shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
@@ -1211,7 +1211,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       </View>
       <Animated.View pointerEvents="none" style={[
         styles.marketHintContainer,
-        { top: Math.max(insets.top + 10, marketTop - 50) },
+        { top: Math.max(insets.top + 10, marketTop + 12 - 50) },
         { transform: [{ translateY: hintBounce }] },
       ]}>
         <View style={styles.marketHintBadge}>
@@ -1269,7 +1269,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       <TouchableOpacity
         style={{
           position: 'absolute',
-          top: sendBtnTop, left: sendBtnLeft,
+          top: sendBtnTop + 12, left: sendBtnLeft,
           width: sendBtnW, height: sendBtnH,
           backgroundColor: isDark ? colors.card2 : colors.card,
           borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder,
@@ -1287,7 +1287,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         <Text style={[styles.capsuleLabel, { color: colors.sendColor }]}>Send</Text>
       </TouchableOpacity>
       <Animated.View pointerEvents="none" style={{
-        position: 'absolute', top: sendBtnTop + sendBtnH + 10,
+        position: 'absolute', top: sendBtnTop + 12 + sendBtnH + 10,
         left: sendBtnLeft, right: sendBtnLeft,
         alignItems: 'center', transform: [{ translateY: txBounce }],
       }}>
@@ -1304,7 +1304,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       <TouchableOpacity
         style={{
           position: 'absolute',
-          top: receiveBtnTop, left: receiveBtnLeft,
+          top: receiveBtnTop + 12, left: receiveBtnLeft,
           width: receiveBtnW, height: sendBtnH,
           backgroundColor: isDark ? colors.card2 : colors.card,
           borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder,
@@ -1322,7 +1322,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         <Text style={[styles.capsuleLabel, { color: colors.receiveColor }]}>Receive</Text>
       </TouchableOpacity>
       <Animated.View pointerEvents="none" style={{
-        position: 'absolute', top: receiveBtnTop + sendBtnH + 10,
+        position: 'absolute', top: receiveBtnTop + 12 + sendBtnH + 10,
         left: receiveBtnLeft, right: receiveBtnLeft,
         alignItems: 'center', transform: [{ translateY: txBounce }],
       }}>

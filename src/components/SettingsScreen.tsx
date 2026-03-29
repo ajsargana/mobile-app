@@ -55,13 +55,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     marketing: false,
   });
 
-  const [deviceInfo, setDeviceInfo] = useState({
-    platform: Platform.OS,
-    version: Platform.Version,
-    storageUsed: '45.2 MB',
-    cacheSize: '12.1 MB',
-  });
-
   const [dailyNotifsEnabled, setDailyNotifsEnabled] = useState(false);
   const [achievementsOpen,   setAchievementsOpen]   = useState(false);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
@@ -166,36 +159,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     );
   };
 
-  const handleExportLogs = async () => {
-    Alert.alert(
-      'Export Logs',
-      'Export diagnostic logs for troubleshooting. No private keys will be included.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Copy to Clipboard', onPress: async () => {
-          try {
-            const logData = {
-              timestamp: new Date().toISOString(),
-              platform: Platform.OS,
-              osVersion: String(Platform.Version),
-              appVersion: '1.0.0',
-              nodeEndpoint: config.nodeEndpoint,
-              miningEnabled: config.miningEnabled,
-              offlineMode: config.offlineMode,
-              dataCompression: config.dataCompression,
-              lowBandwidthMode: config.lowBandwidthMode,
-              biometricEnabled: config.biometric.enabled,
-            };
-            await Clipboard.setStringAsync(JSON.stringify(logData, null, 2));
-            Alert.alert('Copied', 'Diagnostic logs copied to clipboard');
-          } catch (error) {
-            Alert.alert('Error', 'Failed to export logs');
-          }
-        }}
-      ]
-    );
-  };
-
   const handleClearCache = () => {
     Alert.alert(
       'Clear Cache',
@@ -214,7 +177,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             await Promise.all(
               cacheKeys.map(key => SecureStore.deleteItemAsync(key).catch(() => {}))
             );
-            setDeviceInfo(prev => ({ ...prev, cacheSize: '0 MB' }));
             Alert.alert('Success', 'Cache cleared successfully');
           } catch (error) {
             Alert.alert('Error', 'Failed to clear cache');
@@ -522,38 +484,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
 
       </ThemedCard>
 
-      {/* Advanced */}
-      <ThemedCard style={styles.sectionOuter} padding={16}>
-        <Text style={[styles.sectionTitle, { color: colors.sectionTitle }]}>Advanced</Text>
-
-        <SettingItem
-          title="Export Logs"
-          subtitle="Export diagnostic information"
-          icon="document-text"
-          onPress={handleExportLogs}
-          showArrow
-        />
-      </ThemedCard>
-
-      {/* Device Information */}
-      <ThemedCard style={styles.sectionOuter} padding={16}>
-        <Text style={[styles.sectionTitle, { color: colors.sectionTitle }]}>Device Information</Text>
-
-        <View style={styles.infoGrid}>
-          {[
-            { label: 'Platform', value: deviceInfo.platform },
-            { label: 'OS Version', value: String(deviceInfo.version) },
-            { label: 'Storage Used', value: deviceInfo.storageUsed },
-            { label: 'Cache Size', value: deviceInfo.cacheSize },
-          ].map(({ label, value }) => (
-            <View key={label} style={[styles.infoItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F8F9FA' }]}>
-              <Text style={[styles.infoLabel, { color: colors.settingSubtitle }]}>{label}</Text>
-              <Text style={[styles.infoValue, { color: colors.settingTitle }]}>{value}</Text>
-            </View>
-          ))}
-        </View>
-      </ThemedCard>
-
       {/* Maintenance */}
       <ThemedCard style={styles.sectionOuter} padding={16}>
         <Text style={[styles.sectionTitle, { color: colors.sectionTitle }]}>Maintenance</Text>
@@ -589,7 +519,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           title="Privacy Policy"
           subtitle="How we protect your data"
           icon="document-text"
-          onPress={() => Linking.openURL('https://AURA5O.network/privacy').catch(() => Alert.alert('Error', 'Unable to open link'))}
+          onPress={() => Linking.openURL('https://aura50.org/privacy').catch(() => Alert.alert('Error', 'Unable to open link'))}
           showArrow
         />
 
@@ -597,7 +527,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           title="Terms of Service"
           subtitle="Usage terms and conditions"
           icon="document"
-          onPress={() => Linking.openURL('https://AURA5O.network/terms').catch(() => Alert.alert('Error', 'Unable to open link'))}
+          onPress={() => Linking.openURL('https://aura50.org/terms').catch(() => Alert.alert('Error', 'Unable to open link'))}
           showArrow
         />
 
@@ -605,7 +535,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           title="Support"
           subtitle="Get help and report issues"
           icon="help-circle"
-          onPress={() => Linking.openURL('mailto:support@AURA5O.network').catch(() => Alert.alert('Error', 'Unable to open email client'))}
+          onPress={() => Linking.openURL('https://aura50.org').catch(() => Alert.alert('Error', 'Unable to open link'))}
           showArrow
         />
       </ThemedCard>

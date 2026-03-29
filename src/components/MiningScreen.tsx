@@ -761,7 +761,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       <TouchableOpacity
         style={{
           position: 'absolute',
-          top: miningBtnTop,
+          top: miningBtnTop + 12,
           left: miningBtnX > 0 ? miningBtnX : SCREEN_W / 2 - BTN_SIZE / 2,
           width: BTN_SIZE, height: BTN_SIZE, borderRadius: BTN_SIZE / 2,
           backgroundColor: colors.miningBtn,
@@ -778,7 +778,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       {/* Hint badge above button */}
       <Animated.View pointerEvents="none" style={{
         position: 'absolute',
-        top: Math.max(40, miningBtnTop - 58),
+        top: Math.max(40, miningBtnTop + 12 - 58),
         left: 24, right: 24, alignItems: 'center',
         transform: [{ translateY: miningHintBounce }],
       }}>
@@ -796,7 +796,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       <TouchableOpacity
         style={{
           position: 'absolute',
-          top: limitCardTop, left: 24, right: 24,
+          top: limitCardTop + 12, left: 24, right: 24,
           backgroundColor: isDark ? 'rgba(30,40,55,0.97)' : 'rgba(240,248,255,0.97)',
           borderRadius: 14, borderWidth: 1,
           borderColor: isDark ? 'rgba(52,152,219,0.3)' : 'rgba(37,99,235,0.2)',
@@ -823,7 +823,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       {/* Hint badge above card */}
       <Animated.View pointerEvents="none" style={{
         position: 'absolute',
-        top: Math.max(50, limitCardTop - 58),
+        top: Math.max(50, limitCardTop + 12 - 58),
         left: 24, right: 24, alignItems: 'center',
         transform: [{ translateY: limitBounce }],
       }}>
@@ -840,7 +840,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       {/* Re-render the two buttons at measured position */}
       <View style={{
         position: 'absolute',
-        top: historyAreaTop, left: 24, right: 24,
+        top: historyAreaTop + 12, left: 24, right: 24,
         gap: 12, elevation: 24,
       }}>
         {/* Session History */}
@@ -881,7 +881,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       {/* Hint badge above buttons */}
       <Animated.View pointerEvents="none" style={{
         position: 'absolute',
-        top: Math.max(50, historyAreaTop - 58),
+        top: Math.max(50, historyAreaTop + 12 - 58),
         left: 24, right: 24, alignItems: 'center',
         transform: [{ translateY: historyBounce }],
       }}>

@@ -957,7 +957,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
         <TouchableOpacity
           style={{
             position: 'absolute',
-            top: leaderSectionTop > 0 ? leaderSectionTop : 200,
+            top: (leaderSectionTop > 0 ? leaderSectionTop : 200) + 12,
             left: 16, right: 16,
             backgroundColor: 'rgba(20,30,45,0.96)',
             borderRadius: 14, borderWidth: 1,
@@ -978,7 +978,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
         {/* Hint badge */}
         <Animated.View pointerEvents="none" style={{
           position: 'absolute',
-          top: (leaderSectionTop > 0 ? leaderSectionTop : 200) + 62,
+          top: (leaderSectionTop > 0 ? leaderSectionTop : 200) + 74,
           left: 24, right: 24, alignItems: 'center',
           transform: [{ translateY: lBounce }],
         }}>
