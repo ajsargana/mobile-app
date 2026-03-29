@@ -1296,9 +1296,62 @@ export class MiningService {
   // Network Integration
   private currentBlockInfo: any = null; // Store full block info for hash calculation
 
+  /** Auto-authenticate with the backend using wallet credentials, then store the token. */
+  private async ensureAuthToken(): Promise<string | null> {
+    let token = await AsyncStorage.getItem('@aura50_auth_token');
+    if (token) return token;
+
+    try {
+      const account = this.walletService.getCurrentAccount();
+      if (!account) return null;
+
+      const email    = `${account.address.substring(0, 10)}@aura50.local`;
+      const password = `A1${account.privateKey.substring(0, 30)}`;
+
+      // Try login first
+      const loginRes = await fetch(`${config.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (loginRes.ok) {
+        const data = await loginRes.json();
+        token = data.token;
+      } else {
+        // Account not registered yet — register it
+        const regRes = await fetch(`${config.baseUrl}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            password,
+            firstName: 'Mobile',
+            lastName:  'User',
+            username:  account.address.substring(0, 12),
+          }),
+        });
+        if (regRes.ok) {
+          const data = await regRes.json();
+          token = data.token;
+          if (data.user?.id) await AsyncStorage.setItem('@aura50_user_id', data.user.id);
+        }
+      }
+
+      if (token) {
+        await AsyncStorage.setItem('@aura50_auth_token', token);
+        console.log('✅ Auto-authenticated with backend');
+      }
+    } catch (e) {
+      console.warn('⚠️ Auto-auth failed:', e);
+    }
+
+    return token;
+  }
+
   private async getCurrentBlockId(): Promise<string> {
     try {
-      const token = await AsyncStorage.getItem('@aura50_auth_token');
+      const token = await this.ensureAuthToken();
 
       if (!token) {
         console.error('❌ No auth token found - cannot get current block');

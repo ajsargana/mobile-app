@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -62,32 +63,50 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
     }).start();
   }, [borderAnim]);
 
+  // ── Copy picked image to a stable file:// URI ────────────────────────────────
+  const saveImageLocally = useCallback(async (sourceUri: string): Promise<string> => {
+    const dest = `${FileSystem.documentDirectory}profile_picture.jpg`;
+    try {
+      // Remove any stale copy first (avoids caching issues)
+      const info = await FileSystem.getInfoAsync(dest);
+      if (info.exists) await FileSystem.deleteAsync(dest, { idempotent: true });
+      await FileSystem.copyAsync({ from: sourceUri, to: dest });
+      return dest;
+    } catch {
+      return sourceUri; // fallback to original if copy fails
+    }
+  }, []);
+
   // ── Pick from gallery ────────────────────────────────────────────────────────
   const pickFromLibrary = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
+    if (status === 'denied') {
       Alert.alert('Permission Denied', 'Allow photo library access in Settings.');
       return;
     }
-    // Fix: use string[] (MediaType is a TS type, not a runtime object in expo-image-picker v15+)
+    // On Android, let the Alert fully dismiss before launching the picker activity
+    if (Platform.OS === 'android') {
+      await new Promise(r => setTimeout(r, 150));
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: Platform.OS === 'ios',
       aspect: [1, 1],
-      quality: 0.6,
+      quality: 0.7,
     });
-    const asset = result.assets?.[0];
-    if (!result.canceled && asset?.uri) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setProfileUri(asset.uri);
-      setDirty(true);
-    }
-  }, []);
+    if (result.canceled) return;
+    const uri = result.assets?.[0]?.uri;
+    if (!uri) return;
+    const stable = await saveImageLocally(uri);
+    setProfileUri(stable);
+    setDirty(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [saveImageLocally]);
 
   // ── Take photo ───────────────────────────────────────────────────────────────
   const takePhoto = useCallback(async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
+    if (status === 'denied') {
       Alert.alert('Permission Denied', 'Allow camera access in Settings.');
       return;
     }
@@ -95,15 +114,16 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.6,
+      quality: 0.7,
     });
-    const asset = result.assets?.[0];
-    if (!result.canceled && asset?.uri) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setProfileUri(asset.uri);
-      setDirty(true);
-    }
-  }, []);
+    if (result.canceled) return;
+    const uri = result.assets?.[0]?.uri;
+    if (!uri) return;
+    const stable = await saveImageLocally(uri);
+    setProfileUri(stable);
+    setDirty(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [saveImageLocally]);
 
   // ── Remove photo ─────────────────────────────────────────────────────────────
   const removePhoto = useCallback(() => {

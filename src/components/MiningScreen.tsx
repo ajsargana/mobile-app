@@ -101,6 +101,14 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const [toastText,         setToastText]         = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
 
+  // Mining hint (step 2 of onboarding — shown after market hint is completed)
+  const MINING_HINT_KEY = '@aura50_mining_hint_seen';
+  const [showMiningHint, setShowMiningHint] = useState(false);
+  const [miningBtnTop,    setMiningBtnTop]    = useState(0);
+  const [miningBtnHeight, setMiningBtnHeight] = useState(BTN_SIZE);
+  const miningHintBounce = useRef(new Animated.Value(0)).current;
+  const miningBtnRef     = useRef<View>(null);
+
   const mountedRef      = useRef(true);
   const pollingInFlight = useRef(false);
   const btnScale        = useRef(new Animated.Value(1)).current;
@@ -152,6 +160,22 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     mountedRef.current = true;
+
+    // Show mining hint (step 2) if market hint was completed but mining hint not yet seen
+    AsyncStorage.multiGet(['@aura50_market_hint_seen', MINING_HINT_KEY]).then(([[, market], [, mining]]) => {
+      if (market && !mining && mountedRef.current) {
+        // Delay so the screen finishes animating in before we show the overlay
+        setTimeout(() => {
+          miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
+            if (mountedRef.current) {
+              setMiningBtnTop(y);
+              setMiningBtnHeight(h);
+              setShowMiningHint(true);
+            }
+          });
+        }, 500);
+      }
+    });
 
     // Defer heavy init until after the navigation animation completes
     const handle = InteractionManager.runAfterInteractions(async () => {
@@ -274,6 +298,24 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         miningNotifId.current = null;
       }
     };
+  }, []);
+
+  // Mining hint bounce
+  useEffect(() => {
+    if (!showMiningHint) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(miningHintBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+        Animated.timing(miningHintBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [showMiningHint]);
+
+  const dismissMiningHint = useCallback(() => {
+    setShowMiningHint(false);
+    AsyncStorage.setItem(MINING_HINT_KEY, 'true').catch(() => {});
   }, []);
 
   // ── Guards ───────────────────────────────────────────────────────────────
@@ -456,11 +498,17 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
               <RippleRing delay={1200} />
             </>
           )}
-          <TouchableOpacity onPress={handlePress} activeOpacity={1}>
+          <View ref={miningBtnRef} onLayout={() => {
+            miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
+              if (mountedRef.current) { setMiningBtnTop(y); setMiningBtnHeight(h); }
+            });
+          }}>
+          <TouchableOpacity onPress={() => { dismissMiningHint(); handlePress(); }} activeOpacity={1}>
             <Animated.View style={[styles.btnCircle, { backgroundColor: btnColor, transform: [{ scale: btnScale }] }]}>
               <Ionicons name={iconName as any} size={42} color="#FFFFFF" />
             </Animated.View>
           </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={[styles.labelBottom, { color: colors.labelBottom }]}>
@@ -546,6 +594,53 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
 
       </View>
       </ScrollView>
+
+      {/* ── Mining Hint Backdrop (step 2 of onboarding) ── */}
+      {showMiningHint && miningBtnTop > 0 && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {/* Top dim */}
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0,
+            height: Math.max(0, miningBtnTop - 28),
+            backgroundColor: 'rgba(0,0,0,0.65)',
+          }} />
+          {/* Bottom dim */}
+          <View style={{
+            position: 'absolute',
+            top: miningBtnTop + miningBtnHeight + 28,
+            left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+          }} />
+          {/* Hint badge above button */}
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: Math.max(40, miningBtnTop - 56),
+              left: 24, right: 24,
+              alignItems: 'center',
+              transform: [{ translateY: miningHintBounce }],
+            }}
+          >
+            <View style={{
+              backgroundColor: 'rgba(20,20,20,0.75)',
+              borderRadius: 20,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 7,
+              borderWidth: 1,
+              borderColor: 'rgba(93,173,226,0.35)',
+            }}>
+              <Ionicons name="flash-outline" size={14} color="rgba(100,200,255,0.8)" />
+              <Text style={{ color: 'rgba(255,255,255,0.75)', fontWeight: '500', fontSize: 13 }}>
+                Tap to start forging A50
+              </Text>
+            </View>
+          </Animated.View>
+        </View>
+      )}
     </LinearGradient>
   );
 };
