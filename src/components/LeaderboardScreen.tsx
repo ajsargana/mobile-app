@@ -287,7 +287,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
   // Step 8: show leaders hint when onboardingStep === 7
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
-      if (step === '7') {
+      if (step === '8') {
         setTimeout(() => {
           leaderSectionRef.current?.measureInWindow((_x, y) => {
             setLeaderSectionTop(y);
@@ -310,7 +310,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
 
   const dismissLeaderHint = useCallback(() => {
     setLeaderHintReady(false);
-    AsyncStorage.setItem(ONBOARDING_STEP_KEY, '8').catch(() => {});
+    AsyncStorage.setItem(ONBOARDING_STEP_KEY, '9').catch(() => {});
   }, []);
 
   // Re-fetch leaderboard when scope changes (passes scope as query param)

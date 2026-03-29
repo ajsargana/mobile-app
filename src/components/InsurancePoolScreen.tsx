@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,11 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemedCard from './ThemedCard';
 
@@ -50,6 +52,43 @@ export function InsurancePoolScreen({ navigation }: InsurancePoolScreenProps) {
 
   const insurancePool = SybilInsurancePool.getInstance();
   const walletService = EnhancedWalletService.getInstance();
+
+  // ── Insurance Tour ──────────────────────────────────────────────────────────
+  const INS_TOUR_KEY = '@aura50_tour_ins_step';
+  const [insTourStep, setInsTourStep] = useState(-1);
+  const statsCardRef = useRef<View>(null);
+  const [statsTop, setStatsTop] = useState(0);
+  const [statsHeight, setStatsHeight] = useState(0);
+  const [statsReady, setStatsReady] = useState(false);
+  const insBounce = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    AsyncStorage.getItem(INS_TOUR_KEY).then(step => {
+      if (step !== null) setInsTourStep(parseInt(step, 10));
+    });
+  }, []);
+
+  // Step 0: measure pool stats card
+  useEffect(() => {
+    if (insTourStep !== 0) return;
+    const t = setTimeout(() => {
+      statsCardRef.current?.measureInWindow((_x, y, _w, h) => {
+        setStatsTop(y); setStatsHeight(h); setStatsReady(true);
+      });
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [insTourStep]);
+
+  // Bounce animation
+  useEffect(() => {
+    if (!statsReady && insTourStep !== 1) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(insBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(insBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [statsReady, insTourStep]);
 
   useEffect(() => {
     loadPoolData();
@@ -222,7 +261,7 @@ export function InsurancePoolScreen({ navigation }: InsurancePoolScreenProps) {
       {poolStats && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Pool Statistics</Text>
-          <View style={styles.statsGrid}>
+          <View ref={statsCardRef} style={styles.statsGrid}>
             {[
               { icon: 'wallet-outline', color: colors.accent, value: parseFloat(poolStats.totalBalance).toLocaleString(undefined, { maximumFractionDigits: 2 }), label: 'Pool Balance (A50)' },
               { icon: 'flash-outline', color: '#EF4444', value: String(poolStats.sybilAttacksStopped), label: 'Attacks Stopped' },
@@ -689,6 +728,7 @@ export function InsurancePoolScreen({ navigation }: InsurancePoolScreenProps) {
   );
 
   return (
+    <>
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <ScrollView
         refreshControl={
@@ -810,6 +850,53 @@ export function InsurancePoolScreen({ navigation }: InsurancePoolScreenProps) {
         </View>
       </Modal>
     </View>
+
+    {/* ── Insurance Tour Step 0: Pool Stats highlight ── */}
+    <Modal visible={insTourStep === 0 && statsReady} transparent animationType="fade" statusBarTranslucent>
+      <TouchableOpacity
+        style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]}
+        onPress={() => {
+          setStatsReady(false);
+          setInsTourStep(1);
+          AsyncStorage.setItem(INS_TOUR_KEY, '1').catch(() => {});
+        }}
+        activeOpacity={1}
+      />
+      {/* Hint badge */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute',
+        top: Math.max(60, statsTop - 64),
+        left: 24, right: 24, alignItems: 'center',
+        transform: [{ translateY: insBounce }],
+      }}>
+        <View style={insTourStyles.hintBadge}>
+          <Ionicons name="shield-checkmark-outline" size={14} color="rgba(100,200,255,0.85)" />
+          <Text style={insTourStyles.hintBadgeText}>Pool stats — total balance & attacks stopped · tap to continue</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── Insurance Tour Step 1: Contribution hint ── */}
+    <Modal visible={insTourStep === 1} transparent animationType="fade" statusBarTranslucent>
+      <TouchableOpacity
+        style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.55)' }]}
+        onPress={() => {
+          setInsTourStep(2);
+          AsyncStorage.setItem(INS_TOUR_KEY, '2').catch(() => {});
+        }}
+        activeOpacity={1}
+      >
+        <View style={{ position: 'absolute', top: Dimensions.get('window').height / 2, left: 24, right: 24, alignItems: 'center' }}>
+          <Animated.View style={{ transform: [{ translateY: insBounce }] }}>
+            <View style={insTourStyles.hintBadge}>
+              <Ionicons name="heart-outline" size={14} color="rgba(100,200,255,0.85)" />
+              <Text style={insTourStyles.hintBadgeText}>Contribute A50 to protect the network & earn redistribution rewards · tap anywhere to continue</Text>
+            </View>
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+    </>
   );
 }
 
@@ -1515,6 +1602,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+});
+
+// Hint badge styles for insurance tour modals
+const insTourStyles = StyleSheet.create({
+  hintBadge: {
+    backgroundColor: 'rgba(15,15,15,0.78)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(93,173,226,0.35)',
+  },
+  hintBadgeText: { color: 'rgba(255,255,255,0.82)', fontWeight: '500', fontSize: 13 },
 });
 
 export default InsurancePoolScreen;

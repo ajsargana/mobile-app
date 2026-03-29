@@ -47,7 +47,7 @@ import { InsurancePoolScreen } from './src/components/InsurancePoolScreen';
 import { ProfileEditScreen } from './src/components/ProfileEditScreen';
 import { TransactionSuccessScreen } from './src/components/TransactionSuccessScreen';
 import { NotificationsScreen } from './src/components/NotificationsScreen';
-import OnboardingTour, { ONBOARDING_KEY } from './src/components/OnboardingTour';
+import { HelpScreen } from './src/components/HelpScreen';
 import { SplashVideoScreen } from './src/components/SplashVideoScreen';
 
 // ── Android font-scale fix ────────────────────────────────────────────────────
@@ -146,6 +146,7 @@ const AppNavigator = () => {
       <Stack.Screen name="PINEntry"            component={PINEntryScreen}            options={{ title: 'Change PIN' }} />
       <Stack.Screen name="TransactionSuccess"  component={TransactionSuccessScreen}  options={{ headerShown: false }} />
       <Stack.Screen name="Notifications"       component={NotificationsScreen}       options={{ headerShown: false }} />
+      <Stack.Screen name="Help"               component={HelpScreen}                options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 };
@@ -174,7 +175,6 @@ function AppShell() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasWallet, setHasWallet] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showSplash, setShowSplash] = useState(true);
 
@@ -184,14 +184,6 @@ function AppShell() {
     const subscription = DeviceEventEmitter.addListener('logout', () => handleLogout());
     return () => subscription.remove();
   }, []);
-
-  // Show onboarding tour the first time user is authenticated
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    AsyncStorage.getItem(ONBOARDING_KEY).then(done => {
-      if (!done) setShowOnboarding(true);
-    });
-  }, [isAuthenticated]);
 
   const initializeApp = async () => {
     try {
@@ -293,9 +285,6 @@ function AppShell() {
           {isAuthenticated
             ? <AppNavigator />
             : <AuthNavigator onAuthenticated={handleAuthentication} />}
-          {isAuthenticated && showOnboarding && (
-            <OnboardingTour onDone={() => setShowOnboarding(false)} />
-          )}
           {updateInfo !== null && (
             <UpdateModal
               updateInfo={updateInfo}

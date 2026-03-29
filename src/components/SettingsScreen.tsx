@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { AppConfig, NotificationConfig, BiometricConfig } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -323,10 +324,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         />
 
         <SettingItem
-          title="Themes"
-          subtitle="Glassmorphism, Futuristic, Cyberpunk & more"
-          icon="color-palette"
-          onPress={() => setThemePickerOpen(true)}
+          title="Start Tour"
+          subtitle="Guided walkthrough of all AURA50 features"
+          icon="compass"
+          onPress={async () => {
+            await AsyncStorage.setItem('@aura50_onboarding_v2_step', '0');
+            navigation.navigate('Home');
+          }}
           showArrow
         />
 
@@ -335,6 +339,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           subtitle="View your earned badges and milestones"
           icon="trophy"
           onPress={() => setAchievementsOpen(true)}
+          showArrow
+        />
+
+        <SettingItem
+          title="Help & FAQ"
+          subtitle="Guides, tours and frequently asked questions"
+          icon="help-circle"
+          onPress={() => navigation.navigate('Help')}
           showArrow
         />
 

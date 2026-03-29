@@ -113,6 +113,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
 
   // Step 5: Mining button
   const [showMiningHint, setShowMiningHint] = useState(false);
+  const [miningBtnX,      setMiningBtnX]      = useState(0);
   const [miningBtnTop,    setMiningBtnTop]    = useState(0);
   const [miningBtnHeight, setMiningBtnHeight] = useState(BTN_SIZE);
   const miningHintBounce = useRef(new Animated.Value(0)).current;
@@ -125,7 +126,15 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const [limitCardReady,  setLimitCardReady]  = useState(false);
   const limitBounce = useRef(new Animated.Value(0)).current;
 
-  // Step 7: Leaderboard tab button
+  // Step 7: History & Rewards buttons
+  const historyAreaRef = useRef<View>(null);
+  const [historyAreaTop, setHistoryAreaTop] = useState(0);
+  const [historyAreaHeight, setHistoryAreaHeight] = useState(0);
+  const [historyHintReady, setHistoryHintReady] = useState(false);
+  const historyBounce = useRef(new Animated.Value(0)).current;
+  const waitingForHistoryReturn = useRef(false);
+
+  // Step 8: Leaderboard tab button
   const [leaderHintReady, setLeaderHintReady] = useState(false);
   const leaderBounce = useRef(new Animated.Value(0)).current;
 
@@ -313,15 +322,25 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
 
   // Re-read onboarding step when screen gains focus
   // Only advances (Math.max) to prevent stale reads from going backwards
-  // Skips entirely once onboarding is complete (step >= 8)
+  // Skips entirely once onboarding is complete (step >= 9)
   useFocusEffect(useCallback(() => {
+    // Re-read step — only advance, never go back
     AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
       if (!mountedRef.current || step === null) return;
       const n = parseInt(step, 10);
-      if (n >= 8) { setOnboardingStep(8); return; } // fast exit when done
+      if (n >= 9) { setOnboardingStep(9); return; }
       setOnboardingStep(prev => (prev < 0 || n > prev) ? n : prev);
     });
-  }, []));
+    // Step 7: advance when returning from MiningHistory or EpochRewards
+    if (waitingForHistoryReturn.current) {
+      waitingForHistoryReturn.current = false;
+      AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
+        if (step === '6' && mountedRef.current) {
+          setTimeout(() => advanceOnboarding(6), 1000);
+        }
+      });
+    }
+  }, [advanceOnboarding]));
 
   // Step 5: measure mining button when step is active
   useEffect(() => {
@@ -329,7 +348,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     const t = setTimeout(() => {
       miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
         if (mountedRef.current) {
-          setMiningBtnTop(y); setMiningBtnHeight(h); setShowMiningHint(true);
+          setMiningBtnX(_x); setMiningBtnTop(y + 2); setMiningBtnHeight(h); setShowMiningHint(true);
         }
       });
     }, 1000);
@@ -369,14 +388,36 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     return () => loop.stop();
   }, [limitCardReady]);
 
-  // Step 7: leaderboard tab hint
+  // Step 7: measure history/rewards area
   useEffect(() => {
     if (onboardingStep !== 6) return;
-    const t = setTimeout(() => { if (mountedRef.current) setLeaderHintReady(true); }, 1000);
+    const t = setTimeout(() => {
+      historyAreaRef.current?.measureInWindow((_x, y, _w, h) => {
+        if (mountedRef.current) { setHistoryAreaTop(y); setHistoryAreaHeight(h); setHistoryHintReady(true); }
+      });
+    }, 1000);
     return () => clearTimeout(t);
   }, [onboardingStep]);
 
   // Step 7 bounce
+  useEffect(() => {
+    if (!historyHintReady) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(historyBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(historyBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [historyHintReady]);
+
+  // Step 8: leaderboard tab hint
+  useEffect(() => {
+    if (onboardingStep !== 7) return;
+    const t = setTimeout(() => { if (mountedRef.current) setLeaderHintReady(true); }, 1000);
+    return () => clearTimeout(t);
+  }, [onboardingStep]);
+
+  // Step 8 bounce
   useEffect(() => {
     if (!leaderHintReady) return;
     const loop = Animated.loop(Animated.sequence([
@@ -395,13 +436,20 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
 
   const dismissMiningHint = useCallback(() => {
     setShowMiningHint(false);
-    AsyncStorage.setItem(MINING_HINT_KEY, 'true').catch(() => {}); // legacy compat
-    advanceOnboarding(4); // → step 5 (participation limit card)
-  }, [advanceOnboarding]);
+    AsyncStorage.setItem(MINING_HINT_KEY, 'true').catch(() => {});
+    // Step 6 advances when isMining becomes true (useEffect below)
+  }, []);
+
+  // Advance from step 5 to step 6 only when mining is actually running
+  useEffect(() => {
+    if (onboardingStep !== 4 || !isMining) return;
+    const t = setTimeout(() => { if (mountedRef.current) advanceOnboarding(4); }, 1000);
+    return () => clearTimeout(t);
+  }, [isMining, onboardingStep, advanceOnboarding]);
 
   const dismissLimitHint = useCallback(() => {
     setLimitCardReady(false);
-    advanceOnboarding(5); // → step 6 (leaderboard button)
+    advanceOnboarding(5); // → step 6 (participation limit card)
   }, [advanceOnboarding]);
 
   // ── Guards ───────────────────────────────────────────────────────────────
@@ -503,7 +551,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     try {
       if (!canStartMining()) return;
       const user = walletService.getUser();
-      if (user && walletService.calculateTrustLevel(user) === TrustLevel.NEW) {
+      if (onboardingStep !== 4 && user && walletService.calculateTrustLevel(user) === TrustLevel.NEW) {
         Alert.alert(
           'Block Participation',
           "Your device will contribute lightweight consensus work to the network.",
@@ -515,7 +563,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     } catch (_) {
       Alert.alert('Error', 'Failed to start participation. Please try again.');
     }
-  }, [isMining, canStartMining]);
+  }, [isMining, canStartMining, onboardingStep]);
 
   // ── Derived values (memoized — don't recalculate on unrelated renders) ───
   const {
@@ -587,10 +635,10 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           )}
           <View ref={miningBtnRef} onLayout={() => {
             miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
-              if (mountedRef.current) { setMiningBtnTop(y); setMiningBtnHeight(h); }
+              if (mountedRef.current) { setMiningBtnX(_x); setMiningBtnTop(y + 2); setMiningBtnHeight(h); }
             });
           }}>
-          <TouchableOpacity onPress={() => { dismissMiningHint(); handlePress(); }} activeOpacity={1}>
+          <TouchableOpacity onPress={handlePress} activeOpacity={1}>
             <Animated.View style={[styles.btnCircle, { backgroundColor: btnColor, transform: [{ scale: btnScale }] }]}>
               <Ionicons name={iconName as any} size={42} color="#FFFFFF" />
             </Animated.View>
@@ -653,13 +701,22 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           onNewBadges={(ids) => { setAchieveRefreshKey(k => k + 1); showAchievementToast(ids[0]); }}
         />
 
+        {/* ── History & Rewards (wrapped for onboarding step 7) ── */}
+        <View ref={historyAreaRef}>
+
         {/* ── Mining History button ── */}
         <TouchableOpacity
           style={[styles.historyBtn, {
             backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
             borderColor: isDark ? 'rgba(52,152,219,0.15)' : 'rgba(37,99,235,0.12)',
           }]}
-          onPress={() => navigation.navigate('MiningHistory')}
+          onPress={() => {
+            if (onboardingStep === 6 && historyHintReady) {
+              setHistoryHintReady(false);
+              waitingForHistoryReturn.current = true;
+            }
+            navigation.navigate('MiningHistory');
+          }}
           activeOpacity={0.75}
         >
           <Ionicons name="time-outline" size={18} color={colors.historyBtn} />
@@ -673,13 +730,20 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
             backgroundColor: isDark ? 'rgba(39,174,96,0.06)' : 'rgba(39,174,96,0.05)',
             borderColor: isDark ? 'rgba(39,174,96,0.2)' : 'rgba(39,174,96,0.15)',
           }]}
-          onPress={() => navigation.navigate('EpochRewards')}
+          onPress={() => {
+            if (onboardingStep === 6 && historyHintReady) {
+              setHistoryHintReady(false);
+              waitingForHistoryReturn.current = true;
+            }
+            navigation.navigate('EpochRewards');
+          }}
           activeOpacity={0.75}
         >
           <Ionicons name="layers-outline" size={18} color="#27AE60" />
           <Text style={[styles.historyBtnText, { color: '#27AE60' }]}>Pending &amp; Claimable</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
         </TouchableOpacity>
+        </View>
 
       </View>
       </ScrollView>
@@ -698,7 +762,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         style={{
           position: 'absolute',
           top: miningBtnTop,
-          left: SCREEN_W / 2 - BTN_SIZE / 2,
+          left: miningBtnX > 0 ? miningBtnX : SCREEN_W / 2 - BTN_SIZE / 2,
           width: BTN_SIZE, height: BTN_SIZE, borderRadius: BTN_SIZE / 2,
           backgroundColor: colors.miningBtn,
           alignItems: 'center', justifyContent: 'center',
@@ -706,10 +770,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           shadowColor: '#3498DB', shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.4, shadowRadius: 14,
         }}
-        onPress={() => {
-          dismissMiningHint();
-          setTimeout(() => handlePress(), 400); // start mining after modal closes
-        }}
+        onPress={dismissMiningHint}
         activeOpacity={0.85}
       >
         <Ionicons name="flash-outline" size={42} color="#FFFFFF" />
@@ -773,8 +834,66 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       </Animated.View>
     </Modal>
 
-    {/* ── Step 7: Leaderboard tab button highlight ── */}
-    <Modal visible={onboardingStep === 6 && leaderHintReady} transparent animationType="fade" statusBarTranslucent>
+    {/* ── Step 7: History & Rewards buttons highlight ── */}
+    <Modal visible={onboardingStep === 6 && historyHintReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      {/* Re-render the two buttons at measured position */}
+      <View style={{
+        position: 'absolute',
+        top: historyAreaTop, left: 24, right: 24,
+        gap: 12, elevation: 24,
+      }}>
+        {/* Session History */}
+        <TouchableOpacity
+          style={[styles.historyBtn, {
+            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+            borderColor: isDark ? 'rgba(52,152,219,0.25)' : 'rgba(37,99,235,0.15)',
+          }]}
+          onPress={() => {
+            setHistoryHintReady(false);
+            waitingForHistoryReturn.current = true;
+            navigation.navigate('MiningHistory');
+          }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="time-outline" size={18} color={colors.historyBtn} />
+          <Text style={[styles.historyBtnText, { color: colors.historyBtnText }]}>Session History</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
+        </TouchableOpacity>
+        {/* Epoch Rewards */}
+        <TouchableOpacity
+          style={[styles.historyBtn, {
+            backgroundColor: isDark ? 'rgba(39,174,96,0.08)' : 'rgba(39,174,96,0.05)',
+            borderColor: isDark ? 'rgba(39,174,96,0.3)' : 'rgba(39,174,96,0.2)',
+          }]}
+          onPress={() => {
+            setHistoryHintReady(false);
+            waitingForHistoryReturn.current = true;
+            navigation.navigate('EpochRewards');
+          }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="layers-outline" size={18} color="#27AE60" />
+          <Text style={[styles.historyBtnText, { color: '#27AE60' }]}>Pending & Claimable</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
+        </TouchableOpacity>
+      </View>
+      {/* Hint badge above buttons */}
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute',
+        top: Math.max(50, historyAreaTop - 58),
+        left: 24, right: 24, alignItems: 'center',
+        transform: [{ translateY: historyBounce }],
+      }}>
+        <View style={mStyles.hintBadge}>
+          <Ionicons name="time-outline" size={14} color="rgba(100,200,255,0.85)" />
+          <Text style={mStyles.hintBadgeText}>View your sessions & pending rewards · tap to explore</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── Step 8: Leaderboard tab button highlight ── */}
+    <Modal visible={onboardingStep === 7 && leaderHintReady} transparent animationType="fade" statusBarTranslucent>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
       {/* Re-render the Leaderboard tab at its approximate position (index 2 of 5) */}
       <TouchableOpacity
@@ -790,7 +909,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         }}
         onPress={() => {
           setLeaderHintReady(false);
-          advanceOnboarding(6); // → step 7 (LeaderboardScreen)
+          advanceOnboarding(7); // → step 8 (LeaderboardScreen)
           navigation.navigate('Leaderboard');
         }}
         activeOpacity={0.85}

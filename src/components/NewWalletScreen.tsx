@@ -186,6 +186,23 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   const [forgeHintReady, setForgeHintReady] = useState(false);
   const forgeBounce = useRef(new Animated.Value(0)).current;
 
+  // ── Transaction Tour ──────────────────────────────────────────────────────
+  const TX_TOUR_KEY = '@aura50_tour_tx_step';
+  const [txStep, setTxStep] = useState(-1);
+  const [sendBtnTop, setSendBtnTop] = useState(0);
+  const [sendBtnLeft, setSendBtnLeft] = useState(0);
+  const [sendBtnW, setSendBtnW] = useState(0);
+  const [sendBtnH, setSendBtnH] = useState(0);
+  const [sendReady, setSendReady] = useState(false);
+  const sendBtnRef = useRef<View>(null);
+  const receiveBtnRef = useRef<View>(null);
+  const [receiveBtnTop, setReceiveBtnTop] = useState(0);
+  const [receiveBtnLeft, setReceiveBtnLeft] = useState(0);
+  const [receiveBtnW, setReceiveBtnW] = useState(0);
+  const [receiveReady, setReceiveReady] = useState(false);
+  const txBounce = useRef(new Animated.Value(0)).current;
+  const waitingForTxReturn = useRef(false);
+
   const mountedRef     = useRef(true);
   const marketTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const searchTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -314,6 +331,39 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
     loop.start();
     return () => loop.stop();
   }, [forgeHintReady]);
+
+  // TX tour step 0: measure Send button
+  useEffect(() => {
+    if (txStep !== 0) return;
+    const t = setTimeout(() => {
+      sendBtnRef.current?.measureInWindow((x, y, w, h) => {
+        if (mountedRef.current) { setSendBtnLeft(x); setSendBtnTop(y); setSendBtnW(w); setSendBtnH(h); setSendReady(true); }
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [txStep]);
+
+  // TX tour step 1: measure Receive button
+  useEffect(() => {
+    if (txStep !== 1) return;
+    const t = setTimeout(() => {
+      receiveBtnRef.current?.measureInWindow((x, y, w, h) => {
+        if (mountedRef.current) { setReceiveBtnLeft(x); setReceiveBtnTop(y); setReceiveBtnW(w); setReceiveReady(true); }
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [txStep]);
+
+  // TX bounce
+  useEffect(() => {
+    if (!sendReady && !receiveReady && txStep < 2) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(txBounce, { toValue: 6, duration: 500, useNativeDriver: true }),
+      Animated.timing(txBounce, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [sendReady, receiveReady, txStep]);
 
   const dismissMarketHint = useCallback(() => {
     if (onboardingStep !== 2) return; // guard: only advance during step 3
@@ -530,6 +580,28 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         });
       }, 1000);
     }
+    // Load tx tour step
+    AsyncStorage.getItem(TX_TOUR_KEY).then(step => {
+      if (step !== null && mountedRef.current) {
+        setTxStep(parseInt(step, 10));
+      }
+    });
+    // Advance tx tour when returning from Send/Receive screens
+    if (waitingForTxReturn.current) {
+      waitingForTxReturn.current = false;
+      AsyncStorage.getItem(TX_TOUR_KEY).then(step => {
+        if (step !== null && mountedRef.current) {
+          const n = parseInt(step, 10);
+          if (n < 3) {
+            const next = n + 1;
+            setTimeout(() => {
+              setTxStep(next);
+              AsyncStorage.setItem(TX_TOUR_KEY, String(next));
+            }, 1000);
+          }
+        }
+      });
+    }
   }, [loadProfile, loadAchievements, advanceOnboarding]));
 
   // ── Refresh ─────────────────────────────────────────────────────────────────
@@ -680,19 +752,28 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           { label: 'Send',    icon: 'arrow-up-circle-outline',   color: colors.sendColor,    bg: colors.sendBg,    route: 'SendTransaction' },
           { label: 'Receive', icon: 'arrow-down-circle-outline',  color: colors.receiveColor, bg: colors.receiveBg, route: 'ReceiveTransaction' },
           { label: 'Seed',    icon: 'key-outline',               color: colors.seedColor,    bg: colors.seedBg,    route: 'SeedPhrase' },
-        ].map(({ label, icon, color, bg, route }) => (
-          <TouchableOpacity
-            key={label}
-            style={[styles.capsuleBtn, {
-              backgroundColor: isDark ? colors.card2 : colors.card,
-              borderColor: colors.cardBorder,
-            }]}
-            onPress={() => navigation.navigate(route)}
-          >
-            <Ionicons name={icon as any} size={18} color={color} />
-            <Text style={[styles.capsuleLabel, { color }]}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+        ].map(({ label, icon, color, bg, route }) => {
+          const btnRef = label === 'Send' ? sendBtnRef : label === 'Receive' ? receiveBtnRef : null;
+          return (
+            <View ref={btnRef} key={label} style={{ flex: 1 }}>
+              <TouchableOpacity
+                style={[styles.capsuleBtn, {
+                  backgroundColor: isDark ? colors.card2 : colors.card,
+                  borderColor: colors.cardBorder,
+                }]}
+                onPress={() => {
+                  if ((label === 'Send' || label === 'Receive') && txStep >= 0 && txStep < 2) {
+                    waitingForTxReturn.current = true;
+                  }
+                  navigation.navigate(route);
+                }}
+              >
+                <Ionicons name={icon as any} size={18} color={color} />
+                <Text style={[styles.capsuleLabel, { color }]}>{label}</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
       </View>
 
       {/* ── Top Contacts ── */}
@@ -1180,6 +1261,91 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           <Text style={styles.hintBadgeText}>Mine coins here</Text>
         </View>
       </Animated.View>
+    </Modal>
+
+    {/* ── TX Tour Step 0: Send button highlight ── */}
+    <Modal visible={txStep === 0 && sendReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          top: sendBtnTop, left: sendBtnLeft,
+          width: sendBtnW, height: sendBtnH,
+          backgroundColor: isDark ? colors.card2 : colors.card,
+          borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+          gap: 6, elevation: 24,
+        }}
+        onPress={() => {
+          setSendReady(false);
+          waitingForTxReturn.current = true;
+          navigation.navigate('SendTransaction');
+        }}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="arrow-up-circle-outline" size={18} color={colors.sendColor} />
+        <Text style={[styles.capsuleLabel, { color: colors.sendColor }]}>Send</Text>
+      </TouchableOpacity>
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute', top: sendBtnTop + sendBtnH + 10,
+        left: sendBtnLeft, right: sendBtnLeft,
+        alignItems: 'center', transform: [{ translateY: txBounce }],
+      }}>
+        <View style={styles.hintBadge}>
+          <Ionicons name="arrow-up-circle-outline" size={14} color="rgba(100,200,255,0.85)" />
+          <Text style={styles.hintBadgeText}>Send A50 to anyone · tap to try</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── TX Tour Step 1: Receive button highlight ── */}
+    <Modal visible={txStep === 1 && receiveReady} transparent animationType="fade" statusBarTranslucent>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.72)' }]} />
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          top: receiveBtnTop, left: receiveBtnLeft,
+          width: receiveBtnW, height: sendBtnH,
+          backgroundColor: isDark ? colors.card2 : colors.card,
+          borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+          gap: 6, elevation: 24,
+        }}
+        onPress={() => {
+          setReceiveReady(false);
+          waitingForTxReturn.current = true;
+          navigation.navigate('ReceiveTransaction');
+        }}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="arrow-down-circle-outline" size={18} color={colors.receiveColor} />
+        <Text style={[styles.capsuleLabel, { color: colors.receiveColor }]}>Receive</Text>
+      </TouchableOpacity>
+      <Animated.View pointerEvents="none" style={{
+        position: 'absolute', top: receiveBtnTop + sendBtnH + 10,
+        left: receiveBtnLeft, right: receiveBtnLeft,
+        alignItems: 'center', transform: [{ translateY: txBounce }],
+      }}>
+        <View style={styles.hintBadge}>
+          <Ionicons name="arrow-down-circle-outline" size={14} color="rgba(100,200,255,0.85)" />
+          <Text style={styles.hintBadgeText}>Share your address to receive A50 · tap to try</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+
+    {/* ── TX Tour Step 2: View All hint ── */}
+    <Modal visible={txStep === 2} transparent animationType="fade" statusBarTranslucent>
+      <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => {
+        setTxStep(3);
+        AsyncStorage.setItem(TX_TOUR_KEY, '3');
+      }} activeOpacity={1}>
+        <View style={{ position: 'absolute', top: SCREEN_H / 2, left: 24, right: 24, alignItems: 'center' }}>
+          <View style={styles.hintBadge}>
+            <Ionicons name="receipt-outline" size={14} color="rgba(100,200,255,0.85)" />
+            <Text style={styles.hintBadgeText}>Tap 'View All' under Recent Payments to see your full history · tap anywhere to continue</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
     </Modal>
     </>
   );
