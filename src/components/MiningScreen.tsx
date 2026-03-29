@@ -24,6 +24,11 @@ import {
   disableBackgroundMining,
   wasMiningBeforeBackground,
 } from '../tasks/BackgroundMiningTask';
+import {
+  startForegroundMiningService,
+  stopForegroundMiningService,
+  updateForegroundNotification,
+} from '../services/MiningForegroundService';
 import { TrustLevel, DeviceMetrics } from '../types';
 import config from '../config/environment';
 import { useTheme } from '../contexts/ThemeContext';
@@ -230,18 +235,27 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           }
         }
       } else if (state === 'background' || state === 'inactive') {
-        // Going to background — update notification so it's truthful
-        if (isMiningRef.current && miningNotifId.current) {
-          await Notifications.dismissNotificationAsync(miningNotifId.current);
-          miningNotifId.current = await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'AURA50 Mining Active',
-              body: 'Running in background — tap to return',
-              sticky: true,
-              autoDismiss: false,
-            },
-            trigger: null,
-          });
+        if (isMiningRef.current) {
+          // On Android the Foreground Service notification is authoritative —
+          // update it directly instead of spawning a duplicate expo-notification.
+          updateForegroundNotification(
+            'AURA50 Mining Active',
+            'Mining in background — tap to open'
+          ).catch(() => {});
+
+          // iOS / fallback: update the expo-notification as before
+          if (miningNotifId.current) {
+            await Notifications.dismissNotificationAsync(miningNotifId.current);
+            miningNotifId.current = await Notifications.scheduleNotificationAsync({
+              content: {
+                title: 'AURA50 Mining Active',
+                body: 'Running in background — tap to return',
+                sticky: true,
+                autoDismiss: false,
+              },
+              trigger: null,
+            });
+          }
         }
       }
     });
@@ -287,7 +301,9 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       isMiningRef.current = true;
       // Keep screen and JS thread alive while mining
       await activateKeepAwakeAsync('mining');
-      // Register background fetch task — resumes mining if OS kills the process
+      // Start Android Foreground Service — keeps JS thread alive when backgrounded
+      startForegroundMiningService().catch(e => console.warn('[FGService] start:', e));
+      // Register background fetch task (iOS fallback / Android doze recovery)
       enableBackgroundMining().catch(e => console.warn('[BGMining] enable:', e));
       miningNotifId.current = await Notifications.scheduleNotificationAsync({
         content: {
@@ -337,7 +353,9 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       await Notifications.dismissNotificationAsync(miningNotifId.current);
       miningNotifId.current = null;
     }
-    // Remove background task so OS doesn't restart mining after user stopped it
+    // Stop Android Foreground Service
+    stopForegroundMiningService().catch(e => console.warn('[FGService] stop:', e));
+    // Remove background fetch task so OS doesn't restart mining after user stopped it
     disableBackgroundMining().catch(e => console.warn('[BGMining] disable:', e));
   }, []);
 

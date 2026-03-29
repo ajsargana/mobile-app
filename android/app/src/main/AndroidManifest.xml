@@ -46,5 +46,11 @@
         <data android:scheme="aura50"/>
       </intent-filter>
     </activity>
+    <!-- react-native-background-actions: keeps JS thread alive as a Foreground Service -->
+    <service
+      android:name="com.asterinet.reaction.bgactions.RNBackgroundActionsTask"
+      android:enabled="true"
+      android:exported="false"
+      android:foregroundServiceType="dataSync"/>
   </application>
 </manifest>

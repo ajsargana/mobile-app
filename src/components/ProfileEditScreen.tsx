@@ -72,15 +72,14 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
     // Fix: use string[] (MediaType is a TS type, not a runtime object in expo-image-picker v15+)
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: Platform.OS === 'ios',
+      allowsEditing: true,
       aspect: [1, 1],
       quality: 0.6,
-      base64: true,
     });
     const asset = result.assets?.[0];
-    if (asset) {
+    if (!result.canceled && asset?.uri) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setProfileUri(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
+      setProfileUri(asset.uri);
       setDirty(true);
     }
   }, []);
@@ -97,12 +96,11 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.6,
-      base64: true,
     });
     const asset = result.assets?.[0];
-    if (asset) {
+    if (!result.canceled && asset?.uri) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setProfileUri(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
+      setProfileUri(asset.uri);
       setDirty(true);
     }
   }, []);

@@ -13,6 +13,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import { Svg, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -146,6 +147,11 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   const [unlockedCount,     setUnlockedCount]     = useState(0);
   const [totalAchievements, setTotalAchievements] = useState(0);
 
+  // Market hint (one-time onboarding nudge)
+  const MARKET_HINT_KEY = '@aura50_market_hint_seen';
+  const [showMarketHint, setShowMarketHint] = useState(false);
+  const hintBounce = useRef(new Animated.Value(0)).current;
+
   const mountedRef     = useRef(true);
   const marketTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const searchTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,11 +162,33 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
     mountedRef.current = true;
     loadCoins().then(() => loadAllData());
     marketTimer.current = setInterval(() => { if (mountedRef.current) fetchMarket(coinIds); }, MARKET_POLL_MS);
+    // Show market hint once per install
+    AsyncStorage.getItem(MARKET_HINT_KEY).then(seen => {
+      if (!seen && mountedRef.current) setShowMarketHint(true);
+    });
     return () => {
       mountedRef.current = false;
       if (marketTimer.current) clearInterval(marketTimer.current);
       if (searchTimer.current)  clearTimeout(searchTimer.current);
     };
+  }, []);
+
+  // Bounce animation for hint badge
+  useEffect(() => {
+    if (!showMarketHint) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hintBounce, { toValue: 8, duration: 480, useNativeDriver: true }),
+        Animated.timing(hintBounce, { toValue: 0, duration: 480, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [showMarketHint]);
+
+  const dismissMarketHint = useCallback(() => {
+    setShowMarketHint(false);
+    AsyncStorage.setItem(MARKET_HINT_KEY, 'true').catch(() => {});
   }, []);
 
   // Re-fetch market whenever coinIds changes
@@ -603,7 +631,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           const isUp = pct >= 0;
           return (
             <TouchableOpacity key={coin.id} style={[styles.marketRow, { borderBottomColor: colors.marketRowBorder }]}
-              onPress={() => setSelectedCoin(coin)} activeOpacity={0.75}>
+              onPress={() => { dismissMarketHint(); setSelectedCoin(coin); }} activeOpacity={0.75}>
               {/* Left: icon + name */}
               <View style={styles.marketLeft}>
                 {coin.image ? (
@@ -638,9 +666,12 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
                   <InlineSparkline prices={coin.sparkline_in_7d?.price ?? []} isUp={isUp} />
                   <View style={styles.priceBlock}>
                     <Text style={[styles.coinPrice, { color: colors.coinPrice }]}>${fmtUsd(coin.current_price)}</Text>
-                    <Text style={[styles.coinChange, { color: isUp ? colors.success : colors.danger }]}>
-                      {isUp ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}%
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                      <Ionicons name={isUp ? 'caret-up' : 'caret-down'} size={11} color={isUp ? colors.success : colors.danger} />
+                      <Text style={[styles.coinChange, { color: isUp ? colors.success : colors.danger }]}>
+                        {Math.abs(pct).toFixed(1)}%
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )}
@@ -761,9 +792,12 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
                   <View style={styles.chartPriceRow}>
                     <Text style={[styles.chartPrice, { color: colors.chartPrice }]}>${fmtUsd(selectedCoin.current_price)}</Text>
                     <View style={[styles.changeBadge, { backgroundColor: isUp ? colors.txPosBg : colors.txNegBg }]}>
-                      <Text style={[styles.changePct, { color: isUp ? colors.success : colors.danger }]}>
-                        {isUp ? '↑' : '↓'} {Math.abs(pct).toFixed(2)}%
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                        <Ionicons name={isUp ? 'caret-up' : 'caret-down'} size={11} color={isUp ? colors.success : colors.danger} />
+                        <Text style={[styles.changePct, { color: isUp ? colors.success : colors.danger }]}>
+                          {Math.abs(pct).toFixed(2)}%
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
@@ -781,6 +815,23 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         </TouchableOpacity>
       </Modal>
     </ScrollView>
+
+    {/* ── Market Hint Backdrop (one-time onboarding) ── */}
+    {showMarketHint && (
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        {/* Dim layer — visual only, touches still reach ScrollView */}
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.55)' }]} pointerEvents="none" />
+
+        {/* Bouncing hint badge */}
+        <View style={styles.marketHintContainer} pointerEvents="none">
+          <Animated.View style={[styles.marketHintBadge, { transform: [{ translateY: hintBounce }] }]}>
+            <Ionicons name="bar-chart-outline" size={18} color="#000" />
+            <Text style={styles.marketHintText}>Scroll down · Explore the Market</Text>
+            <Ionicons name="chevron-down" size={18} color="#000" />
+          </Animated.View>
+        </View>
+      </View>
+    )}
     </>
   );
 };
@@ -863,6 +914,24 @@ const styles = StyleSheet.create({
   coinIcon: { width: 34, height: 34, borderRadius: 17 },
   coinIconFallback: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center' },
   coinIconLetter: { fontSize: 14, fontWeight: '700', color: '#374151' },
+  // Market hint
+  marketHintContainer: { position: 'absolute', bottom: 100, left: 24, right: 24, alignItems: 'center' },
+  marketHintBadge: {
+    backgroundColor: '#E8A020',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#E8A020',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  marketHintText: { color: '#000', fontWeight: '700', fontSize: 14 },
+
   coinName: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
   coinSymbol: { fontSize: 11, color: '#6B7280', marginTop: 1 },
   marketRight: { flexDirection: 'row', alignItems: 'center' },
