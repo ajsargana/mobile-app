@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURA50 — 5 Auth Concepts</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#08090B;
+  color:#fff;
+  font-family:'Inter',sans-serif;
+  padding:44px 20px 80px;
+}
+
+/* ── Page header ─────────────────────────────────────────── */
+.page-header{text-align:center;margin-bottom:52px}
+.kicker{font-size:10px;letter-spacing:3px;color:#2D3748;text-transform:uppercase;margin-bottom:10px}
+h1{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:#fff;letter-spacing:-0.5px}
+h1 em{color:#5DADE2;font-style:normal}
+.sub{margin-top:8px;font-size:13px;color:#374151}
+
+/* ── Grid ────────────────────────────────────────────────── */
+.grid{
+  display:flex;flex-wrap:wrap;gap:36px;
+  justify-content:center;max-width:1360px;margin:0 auto;
+}
+.col{display:flex;flex-direction:column;align-items:center;gap:14px}
+.col:hover .phone{transform:translateY(-5px);box-shadow:0 32px 72px rgba(0,0,0,.8)}
+.phone{
+  width:218px;height:468px;border-radius:40px;overflow:hidden;
+  border:1.5px solid rgba(255,255,255,0.07);
+  position:relative;
+  box-shadow:0 20px 56px rgba(0,0,0,.7);
+  transition:transform .3s ease, box-shadow .3s ease;
+  flex-shrink:0;
+}
+/* notch */
+.notch{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:66px;height:22px;z-index:20;
+  border-radius:0 0 14px 14px;
+}
+/* status bar */
+.sb{
+  position:absolute;top:0;left:0;right:0;height:36px;z-index:10;
+  display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 20px 5px;font-size:10px;font-weight:700;
+  color:rgba(255,255,255,0.45);pointer-events:none;
+}
+.sb-icons{display:flex;gap:3px;align-items:center}
+.sb-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.3)}
+
+.label{
+  font-size:11px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:#374151;
+}
+.concept-tag{
+  font-size:10px;font-weight:600;color:#1F2937;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:20px;padding:3px 10px;letter-spacing:0.5px;
+}
+.concept-name{
+  font-size:13px;font-weight:600;color:#6B7280;letter-spacing:0.2px;
+  text-align:center;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONCEPT 1 — CINEMATIC LOCK
+   Flow: One giant "unlock" action. Wallet management is
+   collapsed behind a tiny "first time?" link. Logo fills
+   the top 55%. No cards, no sections.
+═══════════════════════════════════════════════════════════ */
+.c1{
+  background:#030507;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-end;
+  height:100%;padding:0 0 28px;
+}
+/* radial glow behind logo */
+.c1-glow{
+  position:absolute;
+  width:220px;height:220px;
+  top:40px;left:50%;transform:translateX(-50%);
+  background:radial-gradient(ellipse,rgba(93,173,226,0.12) 0%,transparent 70%);
+  pointer-events:none;
+}
+.c1-brand{
+  position:absolute;
+  top:0;left:0;right:0;
+  height:58%;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:0;
+}
+.c1-logo{
+  width:74px;height:74px;border-radius:22px;
+  background:linear-gradient(145deg,#1C2A3A,#0D1B2A);
+  border:1px solid rgba(93,173,226,0.2);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:18px;
+  box-shadow:0 0 0 1px rgba(93,173,226,0.08), 0 12px 32px rgba(0,0,0,0.6);
+}
+.c1-logo-txt{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;color:#5DADE2;letter-spacing:1px}
+.c1-name{font-family:'Orbitron',monospace;font-size:26px;font-weight:900;color:#fff;letter-spacing:5px}
+.c1-name span{color:#5DADE2}
+.c1-tag{font-size:9px;font-weight:500;letter-spacing:2.5px;color:rgba(93,173,226,0.4);text-transform:uppercase;margin-top:6px;text-align:center;padding:0 12px}
+
+/* bottom action area */
+.c1-actions{
+  width:100%;padding:0 20px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  z-index:1;
+}
+.c1-unlock{
+  width:100%;padding:14px;
+  background:#5DADE2;border-radius:16px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  box-shadow:0 6px 24px rgba(93,173,226,0.35);
+}
+.c1-unlock-txt{font-size:15px;font-weight:700;color:#030507;letter-spacing:0.3px}
+.c1-arrow{font-size:16px;color:#030507}
+.c1-divider{
+  display:flex;align-items:center;gap:8px;width:100%;
+}
+.c1-div-line{flex:1;height:1px;background:rgba(255,255,255,0.07)}
+.c1-div-txt{font-size:10px;color:#2D3748;font-weight:500}
+.c1-links{display:flex;gap:20px}
+.c1-link{font-size:11px;color:rgba(255,255,255,0.3);font-weight:500;text-decoration:underline;text-decoration-color:rgba(255,255,255,0.1)}
+
+/* ═══════════════════════════════════════════════════════════
+   CONCEPT 2 — NUMPAD-FIRST
+   Flow: PIN numpad IS the screen. No separate nav.
+   Logo tiny at top. Dots → numpad → small links.
+   Collapses two screens into one experience.
+═══════════════════════════════════════════════════════════ */
+.c2{
+  background:#0A0A0F;
+  display:flex;flex-direction:column;
+  align-items:center;
+  height:100%;padding:38px 14px 18px;gap:0;
+}
+.c2-top{
+  display:flex;align-items:center;gap:10px;
+  width:100%;margin-bottom:18px;
+}
+.c2-logo-sm{
+  width:30px;height:30px;border-radius:9px;
+  background:linear-gradient(135deg,#3B82F6,#8B5CF6);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',monospace;font-size:9px;font-weight:900;color:#fff;
+}
+.c2-brand-sm{font-family:'Orbitron',monospace;font-size:12px;font-weight:900;color:#fff;letter-spacing:2px}
+.c2-brand-sm span{color:#8B5CF6}
+.c2-greeting{font-size:13px;font-weight:600;color:#fff;text-align:center;margin-bottom:4px}
+.c2-sub{font-size:10px;color:#374151;text-align:center;margin-bottom:18px}
+/* PIN dots */
+.c2-dots{display:flex;gap:12px;margin-bottom:22px;justify-content:center}
+.c2-dot{
+  width:12px;height:12px;border-radius:50%;
+  border:1.5px solid rgba(139,92,246,0.5);
+  background:transparent;
+}
+.c2-dot.filled{background:#8B5CF6;border-color:#8B5CF6;box-shadow:0 0 8px rgba(139,92,246,0.5)}
+/* numpad */
+.c2-pad{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:8px;width:100%;margin-bottom:14px;
+}
+.c2-key{
+  aspect-ratio:1;border-radius:50%;
+  background:rgba(255,255,255,0.06);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:16px;font-weight:600;color:#fff;
+  border:1px solid rgba(255,255,255,0.07);
+}
+.c2-key.wide{border-radius:14px;aspect-ratio:auto;padding:8px 0}
+.c2-key-sub{font-size:7px;color:rgba(255,255,255,0.3);letter-spacing:1px;margin-top:1px}
+.c2-key-del{font-size:14px;color:rgba(255,255,255,0.4)}
+.c2-bottom{
+  margin-top:auto;display:flex;gap:0;
+  border-top:1px solid rgba(255,255,255,0.05);
+  width:100%;padding-top:10px;
+}
+.c2-bottom-btn{
+  flex:1;text-align:center;font-size:10px;
+  color:rgba(255,255,255,0.3);font-weight:500;
+  padding:4px;
+}
+.c2-bottom-btn + .c2-bottom-btn{border-left:1px solid rgba(255,255,255,0.05)}
+
+/* ═══════════════════════════════════════════════════════════
+   CONCEPT 3 — HORIZONTAL CARD SWIPE
+   Flow: 3 swipeable action cards. Pin/Create/Restore each
+   get full real-estate. Dots indicate position. Each card
+   has its own icon, headline, description, CTA.
+═══════════════════════════════════════════════════════════ */
+.c3{
+  background:#06080F;
+  display:flex;flex-direction:column;
+  align-items:center;
+  height:100%;padding:40px 0 20px;
+}
+.c3-header{
+  width:100%;padding:0 18px;
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:20px;
+}
+.c3-brand{font-family:'Orbitron',monospace;font-size:13px;font-weight:900;letter-spacing:3px;color:#fff}
+.c3-brand span{color:#A78BFA}
+.c3-step{font-size:10px;color:#374151;font-weight:500}
+
+/* Card carousel hint */
+.c3-carousel{
+  width:100%;flex:1;
+  display:flex;align-items:center;
+  position:relative;overflow:visible;
+  padding:0 16px;gap:10px;
+}
+/* peek cards */
+.c3-peek{
+  width:40px;border-radius:18px;flex-shrink:0;
+  opacity:0.3;overflow:hidden;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.c3-peek-l{background:linear-gradient(135deg,#1E3A5F,#0D2137);height:280px}
+.c3-peek-r{background:linear-gradient(135deg,#1A1A3E,#0D0D2A);height:280px}
+
+/* main card */
+.c3-card{
+  flex:1;border-radius:24px;
+  padding:20px 16px 18px;
+  display:flex;flex-direction:column;align-items:center;gap:0;
+  box-shadow:0 16px 48px rgba(0,0,0,.6);
+  background:linear-gradient(150deg,#0F2035,#0A1628);
+  border:1px solid rgba(93,173,226,0.15);
+  height:280px;
+}
+.c3-card-icon{
+  width:60px;height:60px;border-radius:20px;
+  background:rgba(93,173,226,0.1);
+  border:1px solid rgba(93,173,226,0.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;margin-bottom:14px;
+}
+.c3-card-title{font-size:16px;font-weight:700;color:#fff;margin-bottom:6px;text-align:center}
+.c3-card-desc{
+  font-size:10px;color:rgba(255,255,255,0.4);
+  text-align:center;line-height:15px;margin-bottom:auto;
+}
+.c3-card-btn{
+  width:100%;padding:12px;border-radius:14px;
+  background:linear-gradient(135deg,#5DADE2,#3498DB);
+  font-size:12px;font-weight:700;color:#fff;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  margin-top:14px;
+  box-shadow:0 4px 16px rgba(52,152,219,0.3);
+}
+
+/* dots */
+.c3-dots{display:flex;gap:6px;margin-top:16px}
+.c3-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.15)}
+.c3-dot.active{width:18px;border-radius:3px;background:#5DADE2}
+
+.c3-hint{font-size:9px;color:#1F2937;margin-top:8px;letter-spacing:0.5px}
+
+/* ═══════════════════════════════════════════════════════════
+   CONCEPT 4 — SPLIT SCREEN
+   Flow: Screen divided in half. Top = returning user (PIN).
+   Bottom = new user (create/restore). Diagonal cut divides
+   them. Two distinct visual identities in one screen.
+═══════════════════════════════════════════════════════════ */
+.c4{
+  background:#050A14;
+  display:flex;flex-direction:column;
+  height:100%;overflow:hidden;position:relative;
+}
+/* top half */
+.c4-top{
+  flex:1.2;
+  background:linear-gradient(160deg,#0A1628,#0D2137);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:44px 20px 28px;gap:10px;
+  position:relative;
+}
+.c4-top-tag{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(93,173,226,0.5);font-weight:600}
+.c4-top-name{font-family:'Orbitron',monospace;font-size:18px;font-weight:900;color:#fff;letter-spacing:3px}
+.c4-top-name span{color:#5DADE2}
+.c4-badge{
+  background:rgba(93,173,226,0.1);
+  border:1px solid rgba(93,173,226,0.2);
+  border-radius:20px;padding:5px 14px;
+  font-size:9px;letter-spacing:1px;color:#5DADE2;font-weight:600;text-transform:uppercase;
+}
+.c4-pin-btn{
+  background:#5DADE2;border-radius:14px;
+  padding:11px 28px;
+  font-size:13px;font-weight:700;color:#050A14;
+  display:flex;align-items:center;gap:7px;
+  box-shadow:0 6px 20px rgba(93,173,226,0.3);
+  margin-top:4px;
+}
+
+/* diagonal cut */
+.c4-cut{
+  position:absolute;bottom:-1px;left:0;right:0;
+  height:36px;z-index:5;overflow:hidden;
+}
+.c4-cut svg{width:100%;height:100%}
+
+/* bottom half */
+.c4-bot{
+  flex:1;
+  background:linear-gradient(160deg,#0C0C1A,#0A0A14);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:24px 20px 20px;gap:9px;
+  position:relative;
+}
+.c4-bot-tag{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(167,139,250,0.5);font-weight:600}
+.c4-bot-row{display:flex;gap:8px;width:100%}
+.c4-bot-btn{
+  flex:1;padding:10px;border-radius:12px;
+  font-size:11px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.c4-bot-btn.create{
+  background:rgba(139,92,246,0.15);
+  border:1px solid rgba(139,92,246,0.3);
+  color:#A78BFA;
+}
+.c4-bot-btn.restore{
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.1);
+  color:rgba(255,255,255,0.6);
+}
+.c4-bot-note{font-size:9px;color:#1F2937;text-align:center;line-height:13px;padding:0 10px}
+
+/* ═══════════════════════════════════════════════════════════
+   CONCEPT 5 — FLOATING SPATIAL
+   Flow: Brand at top. Three action cards float freely in
+   space at different depths/angles. PIN card is largest
+   (primary), create/restore are smaller satellites.
+   No list, no columns — spatial hierarchy.
+═══════════════════════════════════════════════════════════ */
+.c5{
+  background:#040608;
+  height:100%;position:relative;overflow:hidden;
+}
+/* subtle radial */
+.c5::before{
+  content:'';position:absolute;
+  width:300px;height:300px;
+  top:-50px;left:50%;transform:translateX(-50%);
+  background:radial-gradient(ellipse,rgba(30,60,120,0.2) 0%,transparent 70%);
+  pointer-events:none;
+}
+/* brand */
+.c5-brand{
+  position:absolute;top:44px;left:0;right:0;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  z-index:2;
+}
+.c5-logo{
+  display:flex;align-items:center;gap:7px;
+}
+.c5-logo-mark{
+  width:26px;height:26px;border-radius:8px;
+  background:linear-gradient(135deg,#5DADE2,#3498DB);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',monospace;font-size:8px;font-weight:900;color:#fff;
+}
+.c5-logo-name{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;color:#fff;letter-spacing:3px}
+.c5-logo-name span{color:#5DADE2}
+.c5-tagline{font-size:8px;color:#1F2937;letter-spacing:1.5px}
+
+/* floating cards */
+.c5-card{
+  position:absolute;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,0.07);
+  display:flex;flex-direction:column;
+  padding:14px;
+  backdrop-filter:blur(2px);
+}
+/* PIN — primary, center-left */
+.c5-card-pin{
+  width:148px;
+  top:100px;left:12px;
+  background:linear-gradient(135deg,rgba(13,27,42,0.98),rgba(18,36,54,0.95));
+  border-color:rgba(93,173,226,0.2);
+  box-shadow:0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(93,173,226,0.05);
+  transform:rotate(-1.5deg);
+  z-index:3;
+}
+.c5-card-pin-icon{
+  width:36px;height:36px;border-radius:11px;
+  background:rgba(93,173,226,0.12);
+  border:1px solid rgba(93,173,226,0.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;margin-bottom:8px;
+}
+.c5-card-pin-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:3px}
+.c5-card-pin-sub{font-size:9px;color:rgba(255,255,255,0.35);line-height:13px;margin-bottom:10px}
+.c5-card-pin-btn{
+  background:#5DADE2;border-radius:10px;padding:8px;
+  font-size:10px;font-weight:700;color:#040608;text-align:center;
+  box-shadow:0 4px 12px rgba(93,173,226,0.3);
+}
+
+/* Create — top-right */
+.c5-card-create{
+  width:112px;
+  top:115px;right:8px;
+  background:linear-gradient(135deg,rgba(16,14,32,0.98),rgba(22,18,44,0.95));
+  border-color:rgba(139,92,246,0.2);
+  box-shadow:0 12px 28px rgba(0,0,0,0.5);
+  transform:rotate(2deg);
+  z-index:2;
+}
+.c5-card-create-icon{
+  width:30px;height:30px;border-radius:9px;
+  background:rgba(139,92,246,0.12);
+  border:1px solid rgba(139,92,246,0.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;margin-bottom:7px;
+}
+.c5-card-create-title{font-size:11px;font-weight:700;color:#fff;margin-bottom:3px}
+.c5-card-create-sub{font-size:8px;color:rgba(255,255,255,0.3);line-height:12px;margin-bottom:9px}
+.c5-card-create-btn{
+  background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.3);
+  border-radius:8px;padding:6px;
+  font-size:9px;font-weight:600;color:#A78BFA;text-align:center;
+}
+
+/* Restore — bottom-right */
+.c5-card-restore{
+  width:100px;
+  top:265px;right:14px;
+  background:rgba(10,10,16,0.97);
+  border-color:rgba(255,255,255,0.06);
+  box-shadow:0 10px 24px rgba(0,0,0,0.5);
+  transform:rotate(1.5deg);
+  z-index:1;
+}
+.c5-card-restore-icon{
+  width:26px;height:26px;border-radius:8px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;margin-bottom:6px;
+}
+.c5-card-restore-title{font-size:10px;font-weight:700;color:rgba(255,255,255,0.7);margin-bottom:3px}
+.c5-card-restore-btn{
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);
+  border-radius:7px;padding:5px;
+  font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.4);text-align:center;
+}
+
+/* features row */
+.c5-features{
+  position:absolute;bottom:18px;left:0;right:0;
+  display:flex;justify-content:center;gap:14px;
+  z-index:4;
+}
+.c5-feat{
+  display:flex;align-items:center;gap:4px;
+  font-size:8px;color:#1F2937;font-weight:500;
+}
+.c5-feat-dot{width:4px;height:4px;border-radius:50%;background:#5DADE2;flex-shrink:0}
+
+/* ── Page footer ─────────────────────────────────────────── */
+.page-footer{
+  text-align:center;margin-top:56px;
+  font-size:11px;color:#1F2937;letter-spacing:1px;
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="kicker">AURA50 · Auth Screen</div>
+  <h1>5 Different <em>Flows</em></h1>
+  <div class="sub">Different layout · orientation · interaction · hierarchy. Pick a number.</div>
+</div>
+
+<div class="grid">
+
+  <!-- ══════════════════════════════════════════
+       1 — CINEMATIC LOCK
+       One action. Everything else is secondary.
+  ══════════════════════════════════════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch" style="background:#030507"></div>
+      <div class="sb" style="color:rgba(255,255,255,.35)">
+        <span>9:41</span>
+        <div class="sb-icons"><div class="sb-dot"></div><div class="sb-dot"></div><div class="sb-dot"></div></div>
+      </div>
+
+      <div class="c1">
+        <div class="c1-glow"></div>
+        <!-- brand fills top area -->
+        <div class="c1-brand">
+          <div class="c1-logo">
+            <span class="c1-logo-txt">A50</span>
+          </div>
+          <div class="c1-name">AURA<span>50</span></div>
+          <div class="c1-tag">World's First Mobile-Native Blockchain</div>
+        </div>
+
+        <!-- bottom actions -->
+        <div class="c1-actions">
+          <div class="c1-unlock">
+            <span class="c1-unlock-txt">Unlock Wallet</span>
+            <span class="c1-arrow">→</span>
+          </div>
+          <div class="c1-divider">
+            <div class="c1-div-line"></div>
+            <span class="c1-div-txt">first time?</span>
+            <div class="c1-div-line"></div>
+          </div>
+          <div class="c1-links">
+            <span class="c1-link">Create wallet</span>
+            <span class="c1-link">Restore</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="concept-name">1 — Cinematic Lock</div>
+    <div class="label">Single CTA</div>
+    <div class="concept-tag">Brand fills screen · 1 button · links not buttons</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       2 — NUMPAD-FIRST
+       PIN entry is the screen. No navigation.
+  ══════════════════════════════════════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch" style="background:#0A0A0F"></div>
+      <div class="sb" style="color:rgba(255,255,255,.3)">
+        <span>9:41</span>
+        <div class="sb-icons"><div class="sb-dot"></div><div class="sb-dot"></div><div class="sb-dot"></div></div>
+      </div>
+
+      <div class="c2">
+        <div class="c2-top">
+          <div class="c2-logo-sm">A5</div>
+          <div class="c2-brand-sm">AURA<span>50</span></div>
+        </div>
+        <div class="c2-greeting">Welcome back</div>
+        <div class="c2-sub">Enter your PIN to continue</div>
+
+        <div class="c2-dots">
+          <div class="c2-dot filled"></div>
+          <div class="c2-dot filled"></div>
+          <div class="c2-dot"></div>
+          <div class="c2-dot"></div>
+        </div>
+
+        <div class="c2-pad">
+          <!-- row 1 -->
+          <div class="c2-key">1<div class="c2-key-sub"></div></div>
+          <div class="c2-key">2<div class="c2-key-sub">ABC</div></div>
+          <div class="c2-key">3<div class="c2-key-sub">DEF</div></div>
+          <!-- row 2 -->
+          <div class="c2-key">4<div class="c2-key-sub">GHI</div></div>
+          <div class="c2-key">5<div class="c2-key-sub">JKL</div></div>
+          <div class="c2-key">6<div class="c2-key-sub">MNO</div></div>
+          <!-- row 3 -->
+          <div class="c2-key">7<div class="c2-key-sub">PQRS</div></div>
+          <div class="c2-key">8<div class="c2-key-sub">TUV</div></div>
+          <div class="c2-key">9<div class="c2-key-sub">WXYZ</div></div>
+          <!-- row 4 -->
+          <div class="c2-key" style="background:transparent;border-color:transparent"></div>
+          <div class="c2-key">0</div>
+          <div class="c2-key"><span class="c2-key-del">⌫</span></div>
+        </div>
+
+        <div class="c2-bottom">
+          <div class="c2-bottom-btn">New wallet</div>
+          <div class="c2-bottom-btn">Restore backup</div>
+        </div>
+      </div>
+    </div>
+    <div class="concept-name">2 — Numpad First</div>
+    <div class="label">Skip the nav</div>
+    <div class="concept-tag">PIN screen IS the auth screen</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       3 — SWIPE CARDS
+       3 horizontal cards, each owns full space.
+  ══════════════════════════════════════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch" style="background:#06080F"></div>
+      <div class="sb" style="color:rgba(255,255,255,.3)">
+        <span>9:41</span>
+        <div class="sb-icons"><div class="sb-dot"></div><div class="sb-dot"></div><div class="sb-dot"></div></div>
+      </div>
+
+      <div class="c3">
+        <div class="c3-header">
+          <div class="c3-brand">AURA<span>50</span></div>
+          <div class="c3-step">1 / 3</div>
+        </div>
+
+        <div class="c3-carousel">
+          <!-- left peek -->
+          <div class="c3-peek c3-peek-l"></div>
+
+          <!-- active card -->
+          <div class="c3-card">
+            <div class="c3-card-icon">🔐</div>
+            <div class="c3-card-title">Welcome Back</div>
+            <div class="c3-card-desc">Already have a wallet? Unlock securely with your 4-digit PIN.</div>
+            <div class="c3-card-btn">→ Enter PIN</div>
+          </div>
+
+          <!-- right peek -->
+          <div class="c3-peek c3-peek-r"></div>
+        </div>
+
+        <div class="c3-dots">
+          <div class="c3-dot active"></div>
+          <div class="c3-dot"></div>
+          <div class="c3-dot"></div>
+        </div>
+        <div class="c3-hint">← swipe for more options →</div>
+      </div>
+    </div>
+    <div class="concept-name">3 — Swipe Cards</div>
+    <div class="label">Horizontal flow</div>
+    <div class="concept-tag">Each action gets full real-estate</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       4 — DIAGONAL SPLIT
+       Screen cut in half. Two audiences, one screen.
+  ══════════════════════════════════════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch" style="background:#050A14"></div>
+      <div class="sb" style="color:rgba(255,255,255,.3)">
+        <span>9:41</span>
+        <div class="sb-icons"><div class="sb-dot"></div><div class="sb-dot"></div><div class="sb-dot"></div></div>
+      </div>
+
+      <div class="c4">
+        <!-- top half -->
+        <div class="c4-top">
+          <div class="c4-top-tag">Returning User</div>
+          <div class="c4-top-name">AURA<span>50</span></div>
+          <div class="c4-badge">Secure Access</div>
+          <div class="c4-pin-btn">
+            <span style="font-size:14px">⬡</span>
+            Enter PIN
+          </div>
+          <!-- diagonal cut -->
+          <div class="c4-cut">
+            <svg viewBox="0 0 218 36" preserveAspectRatio="none">
+              <polygon points="0,0 218,0 218,36 0,10" fill="#0C0C1A"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- bottom half -->
+        <div class="c4-bot">
+          <div class="c4-bot-tag">First Time Here?</div>
+          <div class="c4-bot-row">
+            <div class="c4-bot-btn create">+ Create Wallet</div>
+            <div class="c4-bot-btn restore">↓ Restore</div>
+          </div>
+          <div class="c4-bot-note">
+            Offline · 2G ready · Mobile-only
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="concept-name">4 — Diagonal Split</div>
+    <div class="label">Two audiences</div>
+    <div class="concept-tag">Returning vs New — visual divide</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       5 — FLOATING SPATIAL
+       Cards scattered in space. Depth + hierarchy
+       without lists or columns.
+  ══════════════════════════════════════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="notch" style="background:#040608"></div>
+      <div class="sb" style="color:rgba(255,255,255,.25)">
+        <span>9:41</span>
+        <div class="sb-icons"><div class="sb-dot"></div><div class="sb-dot"></div><div class="sb-dot"></div></div>
+      </div>
+
+      <div class="c5">
+        <!-- brand -->
+        <div class="c5-brand">
+          <div class="c5-logo">
+            <div class="c5-logo-mark">A5</div>
+            <div class="c5-logo-name">AURA<span>50</span></div>
+          </div>
+          <div class="c5-tagline">Mobile-Native Blockchain</div>
+        </div>
+
+        <!-- PIN card — primary, slightly rotated left -->
+        <div class="c5-card c5-card-pin">
+          <div class="c5-card-pin-icon">🔐</div>
+          <div class="c5-card-pin-title">Enter PIN</div>
+          <div class="c5-card-pin-sub">Returning user? Unlock your wallet securely.</div>
+          <div class="c5-card-pin-btn">Unlock →</div>
+        </div>
+
+        <!-- Create card — smaller, top-right -->
+        <div class="c5-card c5-card-create">
+          <div class="c5-card-create-icon">✦</div>
+          <div class="c5-card-create-title">New Wallet</div>
+          <div class="c5-card-create-sub">Generate a fresh wallet with seed phrase.</div>
+          <div class="c5-card-create-btn">Create</div>
+        </div>
+
+        <!-- Restore card — smallest, bottom-right -->
+        <div class="c5-card c5-card-restore">
+          <div class="c5-card-restore-icon">↓</div>
+          <div class="c5-card-restore-title">Restore</div>
+          <div class="c5-card-restore-btn">From backup</div>
+        </div>
+
+        <!-- features -->
+        <div class="c5-features">
+          <div class="c5-feat"><div class="c5-feat-dot"></div>Offline</div>
+          <div class="c5-feat"><div class="c5-feat-dot"></div>2G ready</div>
+          <div class="c5-feat"><div class="c5-feat-dot"></div>Mobile only</div>
+        </div>
+      </div>
+    </div>
+    <div class="concept-name">5 — Floating Spatial</div>
+    <div class="label">Depth hierarchy</div>
+    <div class="concept-tag">Cards in space — size = priority</div>
+  </div>
+
+</div>
+
+<div class="page-footer">
+  Tell Claude which number → it gets built into AuthScreen.tsx
+</div>
+
+</body>
+</html>

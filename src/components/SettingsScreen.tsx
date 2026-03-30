@@ -10,18 +10,23 @@ import {
   Platform,
   DeviceEventEmitter,
   Linking,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
+import { useTranslation } from 'react-i18next';
 import { AppConfig, NotificationConfig, BiometricConfig } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { languages } from '../i18n/languages';
 import NotificationService from '../services/NotificationService';
 import AchievementsSheet from './AchievementsSheet';
 import ThemePickerModal from './ThemePickerModal';
 import ThemedCard from './ThemedCard';
+import { LanguagePickerModal } from './LanguageSelectionScreen';
 
 interface SettingsScreenProps {
   navigation: any;
@@ -29,7 +34,9 @@ interface SettingsScreenProps {
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { currentLanguage } = useLanguage();
   const [config, setConfig] = useState<AppConfig>({
     nodeEndpoint: 'wss://bootstrap.AURA5O.network',
     p2pBootstrapNodes: [
@@ -58,6 +65,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
   const [dailyNotifsEnabled, setDailyNotifsEnabled] = useState(false);
   const [achievementsOpen,   setAchievementsOpen]   = useState(false);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -262,6 +270,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     <>
     <AchievementsSheet visible={achievementsOpen} onClose={() => setAchievementsOpen(false)} />
     <ThemePickerModal visible={themePickerOpen} onClose={() => setThemePickerOpen(false)} />
+    <Modal
+      visible={languagePickerOpen}
+      animationType="slide"
+      onRequestClose={() => setLanguagePickerOpen(false)}
+    >
+      <LanguagePickerModal
+        isModal={true}
+        onComplete={() => setLanguagePickerOpen(false)}
+      />
+    </Modal>
     <ScrollView
       style={[styles.container, { backgroundColor: colors.settingsBg }]}
       contentContainerStyle={{ paddingTop: insets.top + 8 }}
@@ -311,6 +329,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           onPress={() => navigation.navigate('Help')}
           showArrow
         />
+
+        {/* Language Selector */}
+        {(() => {
+          const currentLang = languages.find(l => l.code === currentLanguage);
+          return (
+            <SettingItem
+              title={t('settings.language')}
+              subtitle={currentLang?.nativeName}
+              icon="globe"
+              onPress={() => setLanguagePickerOpen(true)}
+              showArrow
+            />
+          );
+        })()}
 
         <SettingItem
           title="Block Participation"

@@ -14,7 +14,29 @@
       "Bash(node -e \"const p = require\\(''babel-plugin-module-resolver''\\); const fn = p.default || p; console.log\\(typeof fn\\); const result = fn\\({types: null}\\); console.log\\(Object.keys\\(result\\)\\)\")",
       "Bash(node -e \":*)",
       "Bash(node -e \"console.log\\(require\\(''./node_modules/babel-preset-expo/package.json''\\).version\\)\")",
-      "Bash(node -e \"console.log\\(require\\(''./node_modules/@babel/core/package.json''\\).version\\)\")"
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/@babel/core/package.json''\\).version\\)\")",
+      "Bash(npx tsx:*)",
+      "Bash(node --import tsx/esm blockchain/rewards/__tests__/MerkleClaimSystem.test.ts)",
+      "Bash(find C:UsersajsarDownloadsmobile-apps -type f \\\\\\(-name *merkle* -o -name *Merkle* -o -name *MerkleTree* \\\\\\))",
+      "WebSearch",
+      "Bash(find C:/Users/ajsar/Downloads/mobile-apps/aura50/EthForge -name MiningEventIntegration* -o -name NotificationService*)",
+      "Bash(xargs grep:*)",
+      "Bash(node -e \"const m = require\\(''./node_modules/@noble/hashes/sha2''\\); console.log\\(Object.keys\\(m\\)\\)\")",
+      "Bash(node -e \"const {sha256} = require\\(''./node_modules/@noble/hashes/sha2''\\); console.log\\(typeof sha256\\)\")",
+      "Bash(node:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep CHashs*= C:/Users/ajsar/Downloads/mobile-apps/node_modules/@noble/hashes/utils.d.ts)",
+      "Bash(done)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Bash(grep -r \"LocalAuthentication\\\\|expo-local-authentication\\\\|BiometricConfig\" C:/Users/ajsar/Downloads/mobile-apps/src --include=*.tsx --include=*.ts)",
+      "Bash(pkill -f \"vite\")",
+      "WebFetch(domain:www.gate.com)",
+      "WebFetch(domain:www.bitrue.com)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

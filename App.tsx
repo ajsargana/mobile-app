@@ -3,6 +3,8 @@ import './metro.shim';
 import './crypto-polyfill';
 // Register background mining task definition before any component mounts
 import './src/tasks/BackgroundMiningTask';
+// Initialize i18n
+import './src/i18n';
 
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
@@ -21,6 +23,9 @@ import { UpdateModal } from './src/components/UpdateModal';
 
 // Theme
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+// Internationalization
+import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
+import { LanguageSelectionScreen } from './src/components/LanguageSelectionScreen';
 import NotificationService from './src/services/NotificationService';
 import { soundService } from './src/services/SoundService';
 
@@ -172,11 +177,13 @@ const AuthNavigator = ({ onAuthenticated }: { onAuthenticated: () => void }) => 
 // ── App shell (inside ThemeProvider so it can read colors) ────────────────────
 function AppShell() {
   const { isDark, colors } = useTheme();
+  const { isLoading: isLanguageLoading } = useLanguage();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasWallet, setHasWallet] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showSplash, setShowSplash] = useState(true);
+  const [showLanguageSelection, setShowLanguageSelection] = useState(false);
 
   useEffect(() => { initializeApp(); }, []);
 
@@ -188,6 +195,14 @@ function AppShell() {
   const initializeApp = async () => {
     try {
       console.log('Services ready for lazy initialization');
+      // Check if language has been selected
+      const savedLanguage = await AsyncStorage.getItem('@aura50_language');
+      if (!savedLanguage) {
+        setShowLanguageSelection(true);
+        setIsLoading(false);
+        return;
+      }
+
       await checkAuthenticationState();
       await checkWalletState();
       // Set up notification channel + request permission (non-blocking)
@@ -274,6 +289,19 @@ function AppShell() {
     ? { ...DarkTheme,    colors: { ...DarkTheme.colors,    background: colors.bg, card: colors.card } }
     : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bg, card: colors.card } };
 
+  if (showLanguageSelection) {
+    return (
+      <LanguageSelectionScreen
+        isModal={false}
+        onComplete={() => {
+          setShowLanguageSelection(false);
+          setIsLoading(true);
+          initializeApp();
+        }}
+      />
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {!isLoading && (
@@ -303,10 +331,12 @@ function AppShell() {
 // ── Root export ───────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <ThemeProvider>
-      <SafeAreaProvider>
-        <AppShell />
-      </SafeAreaProvider>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <AppShell />
+        </SafeAreaProvider>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }
