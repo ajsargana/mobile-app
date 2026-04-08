@@ -257,13 +257,13 @@ export class MiningService {
         return false;
       }
 
-      // Fetch current block info
+      // Fetch current block info (requires auth token + network)
       const blockId = await this.getCurrentBlockId();
 
       // Validate block info before starting
-      if (!this.currentBlockInfo) {
-        console.error('❌ Mining failed: Could not fetch block info');
-        throw new Error('Could not fetch current block information');
+      if (!blockId || !this.currentBlockInfo) {
+        console.error('❌ Mining failed: Could not fetch block info — check internet and account registration');
+        throw new Error('Could not fetch current block information. Please check your network connection.');
       }
 
       // Log block info for debugging
@@ -1033,7 +1033,7 @@ export class MiningService {
   }
 
   private async submitMiningProof(hash: string, nonce: number): Promise<void> {
-    if (!this.currentSession) {
+    if (!this.currentSession || !this.isMining) {
       return;
     }
 
@@ -1071,7 +1071,7 @@ export class MiningService {
 
       if (shareResult.accepted) {
         this.sessionShareCount++;
-        const MAX_SHARES_PER_BLOCK = 4;
+        const MAX_SHARES_PER_BLOCK = 2;
 
         console.log(`✅ Share ${this.sessionShareCount}/${MAX_SHARES_PER_BLOCK} accepted! Block: ${shareResult.blockHeight}`);
 
@@ -1093,6 +1093,7 @@ export class MiningService {
 
         // Keep mining until we hit the per-block cap
         if (this.sessionShareCount < MAX_SHARES_PER_BLOCK) {
+          if (!this.isMining || !this.currentSession) return; // user stopped — don't continue
           console.log(`⛏️ Continuing — ${MAX_SHARES_PER_BLOCK - this.sessionShareCount} more shares possible this block`);
           return; // stay in mining loop
         }
@@ -1296,19 +1297,28 @@ export class MiningService {
   // Network Integration
   private currentBlockInfo: any = null; // Store full block info for hash calculation
 
-  /** Auto-authenticate with the backend using wallet credentials, then store the token. */
+  /** Auto-authenticate with the backend using stored or derived credentials, then store the token. */
   private async ensureAuthToken(): Promise<string | null> {
     let token = await AsyncStorage.getItem('@aura50_auth_token');
     if (token) return token;
 
     try {
-      const account = this.walletService.getCurrentAccount();
-      if (!account) return null;
+      // Prefer credentials stored at wallet setup time (most reliable)
+      let email    = await AsyncStorage.getItem('@aura50_auth_email');
+      let password = await AsyncStorage.getItem('@aura50_auth_pass');
 
-      const email    = `${account.address.substring(0, 10)}@aura50.local`;
-      const password = `A1${account.privateKey.substring(0, 30)}`;
+      // Fall back to deriving from private key if stored credentials are missing
+      if (!email || !password) {
+        const account = this.walletService.getCurrentAccount();
+        if (!account) {
+          console.warn('⚠️ ensureAuthToken: no account available');
+          return null;
+        }
+        email    = `${account.address.substring(0, 10)}@aura50.local`;
+        password = `A1${account.privateKey.substring(0, 30)}`;
+      }
 
-      // Try login first
+      // ── Attempt 1: login ──────────────────────────────────────────────────
       const loginRes = await fetch(`${config.baseUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1319,7 +1329,11 @@ export class MiningService {
         const data = await loginRes.json();
         token = data.token;
       } else {
-        // Account not registered yet — register it
+        const loginErr = await loginRes.json().catch(() => ({})) as any;
+        console.warn(`⚠️ Auto-login failed: HTTP ${loginRes.status} — ${loginErr?.message || 'no message'}`);
+
+        // ── Attempt 2: register (account may not exist yet) ──────────────────
+        const account = this.walletService.getCurrentAccount();
         const regRes = await fetch(`${config.baseUrl}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1328,22 +1342,48 @@ export class MiningService {
             password,
             firstName: 'Mobile',
             lastName:  'User',
-            username:  account.address.substring(0, 12),
+            username:  account?.address.substring(0, 12) ?? email.substring(0, 12),
           }),
         });
+
         if (regRes.ok) {
           const data = await regRes.json();
           token = data.token;
           if (data.user?.id) await AsyncStorage.setItem('@aura50_user_id', data.user.id);
+          // Persist credentials for future re-auth
+          await AsyncStorage.setItem('@aura50_auth_email', email);
+          await AsyncStorage.setItem('@aura50_auth_pass', password);
+        } else {
+          const regErr = await regRes.json().catch(() => ({})) as any;
+          console.warn(`⚠️ Auto-register failed: HTTP ${regRes.status} — ${regErr?.message || 'no message'}`);
+
+          // ── Attempt 3: email already exists → retry login ──────────────────
+          if (regRes.status === 409 || regErr?.message?.toLowerCase().includes('already')) {
+            console.log('🔄 Email exists on backend — retrying login...');
+            const retryRes = await fetch(`${config.baseUrl}/api/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password }),
+            });
+            if (retryRes.ok) {
+              const data = await retryRes.json();
+              token = data.token;
+            } else {
+              const retryErr = await retryRes.json().catch(() => ({})) as any;
+              console.error(`❌ Auth retry login also failed: HTTP ${retryRes.status} — ${retryErr?.message || ''}`);
+            }
+          }
         }
       }
 
       if (token) {
         await AsyncStorage.setItem('@aura50_auth_token', token);
         console.log('✅ Auto-authenticated with backend');
+      } else {
+        console.error('❌ Could not obtain auth token — mining requires network + valid account');
       }
     } catch (e) {
-      console.warn('⚠️ Auto-auth failed:', e);
+      console.warn('⚠️ Auto-auth exception:', e);
     }
 
     return token;
@@ -1354,8 +1394,8 @@ export class MiningService {
       const token = await this.ensureAuthToken();
 
       if (!token) {
-        console.error('❌ No auth token found - cannot get current block');
-        return `block_${Date.now()}`;
+        console.error('❌ No auth token found — cannot fetch current block. Check network connection.');
+        return '';
       }
 
       const response = await fetch(`${config.baseUrl}/api/blocks/current`, {
@@ -1370,11 +1410,11 @@ export class MiningService {
         return data.blockId;
       } else {
         console.error('Failed to fetch current block:', response.status);
-        return `block_${Date.now()}`;
+        return '';
       }
     } catch (error) {
       console.error('Error fetching current block:', error);
-      return `block_${Date.now()}`;
+      return '';
     }
   }
 

@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
 import { Transaction } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { DISPLAY_NAME_KEY, PROFILE_PIC_KEY } from './ProfileEditScreen';
 import AchievementService from '../services/AchievementService';
 import AchievementsSheet from './AchievementsSheet';
@@ -109,6 +110,7 @@ function getGreeting(): string {
 export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { t } = useTranslation();
 
   // Wallet
   const [showBalance, setShowBalance]   = useState(true);
@@ -207,6 +209,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   const marketTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const searchTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const walletService  = EnhancedWalletService.getInstance();
+
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -749,9 +752,9 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       {/* ── Capsule Action Buttons (3 only) ── */}
       <View style={styles.actionRow}>
         {[
-          { label: 'Send',    icon: 'arrow-up-circle-outline',   color: colors.sendColor,    bg: colors.sendBg,    route: 'SendTransaction' },
-          { label: 'Receive', icon: 'arrow-down-circle-outline',  color: colors.receiveColor, bg: colors.receiveBg, route: 'ReceiveTransaction' },
-          { label: 'Seed',    icon: 'key-outline',               color: colors.seedColor,    bg: colors.seedBg,    route: 'SeedPhrase' },
+          { label: t('home.send'),    icon: 'arrow-up-circle-outline',   color: colors.sendColor,    bg: colors.sendBg,    route: 'SendTransaction' },
+          { label: t('home.receive'), icon: 'arrow-down-circle-outline',  color: colors.receiveColor, bg: colors.receiveBg, route: 'ReceiveTransaction' },
+          { label: t('home.seed'),    icon: 'key-outline',               color: colors.seedColor,    bg: colors.seedBg,    route: 'SeedPhrase' },
         ].map(({ label, icon, color, bg, route }) => {
           const btnRef = label === 'Send' ? sendBtnRef : label === 'Receive' ? receiveBtnRef : null;
           return (
@@ -779,9 +782,9 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       {/* ── Top Contacts ── */}
       <ThemedCard style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Top Contacts</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('home.topContacts')}</Text>
           <TouchableOpacity onPress={() => Alert.alert('Contacts', `${contacts.length} saved contact(s).`)}>
-            <Text style={[styles.viewAllText, { color: colors.accent }]}>View All {'>'}</Text>
+            <Text style={[styles.viewAllText, { color: colors.accent }]}>{t('home.viewAll')} {'>'}</Text>
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -806,15 +809,15 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       {/* ── Recent Payments ── */}
       <ThemedCard style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recent Payments</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('home.recentTransactions')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('TransactionHistory')}>
-            <Text style={[styles.viewAllText, { color: colors.accent }]}>View All {'>'}</Text>
+            <Text style={[styles.viewAllText, { color: colors.accent }]}>{t('home.viewAll')} {'>'}</Text>
           </TouchableOpacity>
         </View>
         {recentPayments.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="receipt-outline" size={36} color={colors.emptyIcon} />
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>No recent payments</Text>
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>{t('home.noTransactions')}</Text>
           </View>
         ) : recentPayments.map(tx => {
           const positive = isPositiveTx(tx);
@@ -843,7 +846,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       >
       <ThemedCard style={[styles.sectionCard, styles.lastCard]}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Market</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('home.market')}</Text>
           <View style={styles.marketActions}>
             <TouchableOpacity style={[styles.marketActionBtn, { backgroundColor: colors.marketActionBtnBg }]}
               onPress={() => setEditingMarket(v => !v)}>
@@ -859,11 +862,11 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         {marketLoading ? (
           <View style={styles.emptyState}>
             <ActivityIndicator color={colors.accent} />
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>Loading prices…</Text>
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>{t('common.loading')}</Text>
           </View>
         ) : marketData.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>No coins — tap + to add</Text>
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>{t('home.noCoins')}</Text>
           </View>
         ) : marketData.map(coin => {
           const pct  = coin.price_change_percentage_24h ?? 0;
@@ -1171,7 +1174,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         shadowOpacity: 0.4, shadowRadius: 16,
       }}>
         <View style={[styles.sectionHeader, { marginBottom: 10 }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Market</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('home.market')}</Text>
         </View>
         {marketData.map(coin => {
           const pct  = coin.price_change_percentage_24h ?? 0;
@@ -1394,6 +1397,8 @@ const styles = StyleSheet.create({
   trustBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '600' },
 
   // Capsule actions
+  referCapsuleGradient: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 16 },
+  referCapsuleText: { fontSize: 13, fontWeight: '600', color: '#06b6d4', letterSpacing: 0.3 },
   actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 14 },
   capsuleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 13, borderRadius: 14, borderWidth: 1, gap: 6 },
   capsuleLabel: { fontSize: 13, fontWeight: '700' },

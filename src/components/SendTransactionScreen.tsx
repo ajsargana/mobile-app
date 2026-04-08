@@ -140,7 +140,7 @@ export const SendTransactionScreen = ({ navigation }: any) => {
     // Confirm transaction
     Alert.alert(
       'Confirm Transaction',
-      `Send ${amount} A50 to ${recipientAddress.substring(0, 10)}...?\n\nFee: ${fee} A50\nTotal: ${(parseFloat(amount) + parseFloat(fee)).toFixed(8)} A50`,
+      `Send ${amount} A50 to ${recipientAddress ? recipientAddress.substring(0, 10) : 'Unknown'}...?\n\nFee: ${fee} A50\nTotal: ${(parseFloat(amount) + parseFloat(fee)).toFixed(8)} A50`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Send', onPress: () => submitTransaction() },

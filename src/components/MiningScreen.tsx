@@ -19,6 +19,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { MiningService } from '../services/MiningService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
 import { NetworkService } from '../services/NetworkService';
@@ -35,6 +36,7 @@ import {
 import { TrustLevel, DeviceMetrics } from '../types';
 import config from '../config/environment';
 import { useTheme } from '../contexts/ThemeContext';
+import { useDeviceCapability } from '../contexts/DeviceCapabilityContext';
 import StreakService from '../services/StreakService';
 import AchievementService from '../services/AchievementService';
 import NotificationService from '../services/NotificationService';
@@ -82,7 +84,13 @@ const RippleRing = React.memo(({ delay }: { delay: number }) => {
 
 export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const { colors, isDark } = useTheme();
+  const { isLowEnd, perfTier, overrideSetting } = useDeviceCapability();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    console.log(`[MiningScreen] isLowEnd=${isLowEnd}, perfTier=${perfTier}, override=${overrideSetting}`);
+  }, [isLowEnd, perfTier, overrideSetting]);
   const [isMining,        setIsMining]       = useState(false);
   const [isInitializing,  setIsInitializing] = useState(true);
   const [deviceMetrics,   setDeviceMetrics]  = useState<DeviceMetrics>({
@@ -228,13 +236,14 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       }
     };
 
-    // ── WS delta: mining stats updated when a block settles (sound only) ──
-    // fetchParticipation is NOT called here — the daily count only resets at UTC
-    // midnight, so polling it on every 2-min block is unnecessary churn.
+    // ── WS delta: mining stats updated when a block settles (sound + participation count) ──
+    // Fetch participation to update the daily count in real-time when a block settles.
+    // This lets the counter update immediately on successful mining sessions.
     const onBlockSettled = () => {
       if (!mountedRef.current) return;
       setMiningStats(miningService.getMiningStats());
       soundService.playCoinSound();
+      fetchParticipation(); // Update daily count in real-time
     };
 
     networkService.on('blockPending', onBlockPending);
@@ -579,6 +588,19 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     labelTop:        isMining ? 'CONTRIBUTING' : 'READY TO FORGE',
   }), [deviceMetrics.batteryLevel, deviceMetrics.isCharging, dailyCount, dailyLimit, isMining, colors]);
 
+  // ── Auto-stop mining when daily limit is reached ──────────────────────────
+  useEffect(() => {
+    if (limitReached && isMining) {
+      console.log('[MiningScreen] Daily limit reached — auto-stopping mining');
+      miningService.stopMining().then(() => {
+        if (mountedRef.current) {
+          setIsMining(false);
+          stopMiningKeepAwake();
+        }
+      }).catch(e => console.warn('[MiningScreen] Failed to auto-stop mining:', e));
+    }
+  }, [limitReached, isMining]);
+
   // ── Loading placeholder ───────────────────────────────────────────────────
   if (isInitializing) {
     return (
@@ -627,11 +649,15 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         {/* Button + ripple rings */}
         <View style={styles.btnWrap}>
           {isMining && (
-            <>
-              <RippleRing delay={0} />
-              <RippleRing delay={600} />
-              <RippleRing delay={1200} />
-            </>
+            isLowEnd ? (
+              <View style={styles.staticGlow} />
+            ) : (
+              <>
+                <RippleRing delay={0} />
+                <RippleRing delay={600} />
+                <RippleRing delay={1200} />
+              </>
+            )
           )}
           <View ref={miningBtnRef} onLayout={() => {
             miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
@@ -647,7 +673,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         </View>
 
         <Text style={[styles.labelBottom, { color: colors.labelBottom }]}>
-          {isMining ? 'Tap to stop' : 'Tap to start'}
+          {isMining ? t('mining.stopMining') : t('mining.tapToMine')}
         </Text>
 
         {lowBattery && (
@@ -670,7 +696,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           borderColor: isDark ? 'rgba(52,152,219,0.15)' : 'rgba(37,99,235,0.12)',
         }]}>
           <View style={styles.participationRow}>
-            <Text style={[styles.participationLabel, { color: colors.participationLabel }]}>PARTICIPATED TODAY</Text>
+            <Text style={[styles.participationLabel, { color: colors.participationLabel }]}>{t('mining.participatedToday').toUpperCase()}</Text>
             <Text style={[styles.participationValue, { color: limitReached ? colors.danger : colors.participationValue }]}>
               {dailyCount} / {dailyLimit}
             </Text>
@@ -720,7 +746,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           activeOpacity={0.75}
         >
           <Ionicons name="time-outline" size={18} color={colors.historyBtn} />
-          <Text style={[styles.historyBtnText, { color: colors.historyBtnText }]}>Session History</Text>
+          <Text style={[styles.historyBtnText, { color: colors.historyBtnText }]}>{t('mining.sessionHistory')}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
         </TouchableOpacity>
 
@@ -740,7 +766,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           activeOpacity={0.75}
         >
           <Ionicons name="layers-outline" size={18} color="#27AE60" />
-          <Text style={[styles.historyBtnText, { color: '#27AE60' }]}>Pending &amp; Claimable</Text>
+          <Text style={[styles.historyBtnText, { color: '#27AE60' }]}>{t('mining.pendingRewards')}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
         </TouchableOpacity>
         </View>
@@ -857,7 +883,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           activeOpacity={0.75}
         >
           <Ionicons name="time-outline" size={18} color={colors.historyBtn} />
-          <Text style={[styles.historyBtnText, { color: colors.historyBtnText }]}>Session History</Text>
+          <Text style={[styles.historyBtnText, { color: colors.historyBtnText }]}>{t('mining.sessionHistory')}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
         </TouchableOpacity>
         {/* Epoch Rewards */}
@@ -874,7 +900,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           activeOpacity={0.75}
         >
           <Ionicons name="layers-outline" size={18} color="#27AE60" />
-          <Text style={[styles.historyBtnText, { color: '#27AE60' }]}>Pending & Claimable</Text>
+          <Text style={[styles.historyBtnText, { color: '#27AE60' }]}>{t('mining.pendingRewards')}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.labelBottom} />
         </TouchableOpacity>
       </View>
@@ -1000,6 +1026,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 14,
     elevation: 10,
+  },
+
+  staticGlow: {
+    position: 'absolute',
+    width: BTN_SIZE * 1.6,
+    height: BTN_SIZE * 1.6,
+    borderRadius: (BTN_SIZE * 1.6) / 2,
+    backgroundColor: 'rgba(52,152,219,0.12)',
   },
 
   labelBottom: {

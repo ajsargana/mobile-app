@@ -6,14 +6,15 @@ import './src/tasks/BackgroundMiningTask';
 // Initialize i18n
 import './src/i18n';
 
-import React, { useState, useEffect } from 'react';
-import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
+import React, { useState, useEffect, useRef } from 'react';
+import { NavigationContainer, DarkTheme, DefaultTheme, useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, Alert, DeviceEventEmitter, View, Text, TextInput } from 'react-native';
+import { Platform, Alert, DeviceEventEmitter, View, Text, TextInput, Linking, PanResponder, Animated, Dimensions, TouchableOpacity } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EnhancedWalletService } from './src/services/EnhancedWalletService';
@@ -23,9 +24,11 @@ import { UpdateModal } from './src/components/UpdateModal';
 
 // Theme
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+// Device Capability
+import { DeviceCapabilityProvider } from './src/contexts/DeviceCapabilityContext';
 // Internationalization
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
-import { LanguageSelectionScreen } from './src/components/LanguageSelectionScreen';
+import { useTranslation } from 'react-i18next';
 import NotificationService from './src/services/NotificationService';
 import { soundService } from './src/services/SoundService';
 
@@ -54,6 +57,16 @@ import { TransactionSuccessScreen } from './src/components/TransactionSuccessScr
 import { NotificationsScreen } from './src/components/NotificationsScreen';
 import { HelpScreen } from './src/components/HelpScreen';
 import { SplashVideoScreen } from './src/components/SplashVideoScreen';
+import { BlockExplorerScreen } from './src/components/BlockExplorerScreen';
+import { BlocksListScreen } from './src/components/BlocksListScreen';
+import { BlockDetailScreen } from './src/components/BlockDetailScreen';
+import { BlockTransactionsScreen } from './src/components/BlockTransactionsScreen';
+import { TopMinersScreen } from './src/components/TopMinersScreen';
+import { RecentTransactionsScreen } from './src/components/RecentTransactionsScreen';
+import { TransactionDetailScreen } from './src/components/TransactionDetailScreen';
+import { AddressDetailScreen } from './src/components/AddressDetailScreen';
+import { ExplorerSearchScreen } from './src/components/ExplorerSearchScreen';
+import { LanguageSelectionScreen } from './src/components/LanguageSelectionScreen';
 
 // ── Android font-scale fix ────────────────────────────────────────────────────
 // Android respects the system font-size setting (often 1.15×+); iOS ignores it.
@@ -65,10 +78,13 @@ import { SplashVideoScreen } from './src/components/SplashVideoScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
 // ── Tab Navigator (consumes theme) ────────────────────────────────────────────
 const MainTabNavigator = () => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   return (
     <Tab.Navigator
@@ -109,12 +125,83 @@ const MainTabNavigator = () => {
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Home" component={NewWalletScreen} />
-      <Tab.Screen name="Mining" component={MiningScreen} options={{ title: 'Forge' }} />
-      <Tab.Screen name="Leaderboard" component={LeaderboardScreen} />
-      <Tab.Screen name="Insurance" component={InsurancePoolScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Home" component={NewWalletScreen} options={{ title: t('nav.home') }} />
+      <Tab.Screen name="Mining" component={MiningScreen} options={{ title: t('nav.forge') }} />
+      <Tab.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: t('nav.leaderboard') }} />
+      <Tab.Screen name="Insurance" component={InsurancePoolScreen} options={{ title: t('nav.insurance') }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: t('nav.settings') }} />
     </Tab.Navigator>
+  );
+};
+
+// ── Floating Refer & Earn capsule (persists across all screens) ───────────────
+const FloatingReferCapsule = () => {
+  const navigation = useNavigation<any>();
+  const { t } = useTranslation();
+
+  const capsuleX = useRef(new Animated.Value(SCREEN_W * 0.52)).current;
+  const capsuleY = useRef(new Animated.Value(SCREEN_H * 0.30)).current;
+  const isDragging = useRef(false);
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 4 || Math.abs(gs.dy) > 4,
+      onPanResponderGrant: () => {
+        isDragging.current = false;
+        capsuleX.setOffset((capsuleX as any)._value);
+        capsuleY.setOffset((capsuleY as any)._value);
+        capsuleX.setValue(0);
+        capsuleY.setValue(0);
+      },
+      onPanResponderMove: (_, gs) => {
+        isDragging.current = true;
+        (capsuleX as any).setValue(gs.dx);
+        (capsuleY as any).setValue(gs.dy);
+      },
+      onPanResponderRelease: () => {
+        capsuleX.flattenOffset();
+        capsuleY.flattenOffset();
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute',
+        zIndex: 999,
+        left: capsuleX,
+        top: capsuleY,
+        borderRadius: 20,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(6,182,212,0.35)',
+        elevation: 10,
+        shadowColor: '#06b6d4',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28,
+        shadowRadius: 8,
+      }}
+      {...pan.panHandlers}
+    >
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => { if (!isDragging.current) navigation.navigate('Leaderboard', { scrollToInvite: true }); }}
+      >
+        <LinearGradient
+          colors={['rgba(6,182,212,0.22)', 'rgba(2,132,199,0.22)']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 14 }}
+        >
+          <Ionicons name="people-outline" size={15} color="#06b6d4" />
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#06b6d4', letterSpacing: 0.3 }}>
+            {t('home.referAndEarn')}
+          </Text>
+          <Ionicons name="chevron-forward" size={13} color="rgba(6,182,212,0.7)" />
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
@@ -152,6 +239,15 @@ const AppNavigator = () => {
       <Stack.Screen name="TransactionSuccess"  component={TransactionSuccessScreen}  options={{ headerShown: false }} />
       <Stack.Screen name="Notifications"       component={NotificationsScreen}       options={{ headerShown: false }} />
       <Stack.Screen name="Help"               component={HelpScreen}                options={{ headerShown: false }} />
+      <Stack.Screen name="BlockExplorer"     component={BlockExplorerScreen}        options={{ headerShown: false }} />
+      <Stack.Screen name="BlocksList"        component={BlocksListScreen}           options={{ headerShown: false }} />
+      <Stack.Screen name="BlockDetail"       component={BlockDetailScreen}          options={{ headerShown: false }} />
+      <Stack.Screen name="BlockTransactions" component={BlockTransactionsScreen}    options={{ headerShown: false }} />
+      <Stack.Screen name="TopMiners"         component={TopMinersScreen}            options={{ headerShown: false }} />
+      <Stack.Screen name="RecentTransactions" component={RecentTransactionsScreen}  options={{ headerShown: false }} />
+      <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen}    options={{ headerShown: false }} />
+      <Stack.Screen name="AddressDetail"     component={AddressDetailScreen}        options={{ headerShown: false }} />
+      <Stack.Screen name="ExplorerSearch"    component={ExplorerSearchScreen}       options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 };
@@ -185,11 +281,32 @@ function AppShell() {
   const [showSplash, setShowSplash] = useState(true);
   const [showLanguageSelection, setShowLanguageSelection] = useState(false);
 
-  useEffect(() => { initializeApp(); }, []);
+  useEffect(() => {
+    initializeApp();
+  }, []);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('logout', () => handleLogout());
     return () => subscription.remove();
+  }, []);
+
+  // Capture referral code from deep link on cold start
+  useEffect(() => {
+    Linking.getInitialURL().then(url => {
+      if (!url) return;
+      const match = url.match(/[?&]ref=([^&]+)/);
+      if (match?.[1]) {
+        AsyncStorage.setItem('@aura50_pending_referral_code', decodeURIComponent(match[1])).catch(() => {});
+      }
+    }).catch(() => {});
+
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const match = url.match(/[?&]ref=([^&]+)/);
+      if (match?.[1]) {
+        AsyncStorage.setItem('@aura50_pending_referral_code', decodeURIComponent(match[1])).catch(() => {});
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   const initializeApp = async () => {
@@ -311,7 +428,12 @@ function AppShell() {
         >
           <StatusBar style={isDark ? 'light' : 'dark'} />
           {isAuthenticated
-            ? <AppNavigator />
+            ? (
+              <>
+                <AppNavigator />
+                <FloatingReferCapsule />
+              </>
+            )
             : <AuthNavigator onAuthenticated={handleAuthentication} />}
           {updateInfo !== null && (
             <UpdateModal
@@ -333,9 +455,11 @@ export default function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <SafeAreaProvider>
-          <AppShell />
-        </SafeAreaProvider>
+        <DeviceCapabilityProvider>
+          <SafeAreaProvider>
+            <AppShell />
+          </SafeAreaProvider>
+        </DeviceCapabilityProvider>
       </ThemeProvider>
     </LanguageProvider>
   );

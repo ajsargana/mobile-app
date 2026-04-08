@@ -7,7 +7,10 @@ import {
   Dimensions,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDeviceCapability } from '../contexts/DeviceCapabilityContext';
 
 const FIRST_PLAY_KEY = '@aura50_first_play_done';
 const { width, height } = Dimensions.get('window');
@@ -22,6 +25,7 @@ interface Props {
 }
 
 export function SplashVideoScreen({ onFinished }: Props) {
+  const { isLowEnd, isDetecting } = useDeviceCapability();
   const videoRef = useRef<Video>(null);
   const [isFirstPlay, setIsFirstPlay] = useState<boolean | null>(null);
   const [source, setSource] = useState<number | null>(null);
@@ -51,6 +55,29 @@ export function SplashVideoScreen({ onFinished }: Props) {
       finish();
     }
   };
+
+  // Auto-finish splash on low-end devices (skip video playback)
+  useEffect(() => {
+    if (!isDetecting && isLowEnd) {
+      const timer = setTimeout(finish, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [isDetecting, isLowEnd]);
+
+  // Show static logo instead of video on low-end
+  if (!isDetecting && isLowEnd) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#141E28', '#0A3D62', '#141E28']} style={styles.gradient} />
+        <View style={{ alignItems: 'center' }}>
+          <Ionicons name="flash" size={72} color="#5DADE2" />
+          <Text style={{ color: '#5DADE2', fontSize: 28, fontWeight: '700', marginTop: 12 }}>
+            AURA50
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   if (source === null) return null;
 
@@ -87,6 +114,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     zIndex: 9999,
     elevation: 9999,
+  },
+  gradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   video: {
     width,

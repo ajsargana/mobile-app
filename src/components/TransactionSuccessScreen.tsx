@@ -5,7 +5,7 @@
  * The shareable receipt card contains full proof-grade detail:
  * tx ID, type, fee, from, to, block height, status, date, network.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated,
   Dimensions, Platform, StatusBar, Alert, ScrollView,
@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
+import { useDeviceCapability } from '../contexts/DeviceCapabilityContext';
 
 const { width } = Dimensions.get('window');
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
@@ -23,22 +24,6 @@ const CONFETTI_COLORS = [
   '#5DADE2', '#F4D03F', '#2ECC71', '#E74C3C',
   '#9B59B6', '#F39C12', '#1ABC9C', '#FF6B6B', '#FFFFFF',
 ];
-const PARTICLE_COUNT = 32;
-const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
-  const angle = (360 / PARTICLE_COUNT) * i + (Math.random() - 0.5) * 24;
-  const rad   = (angle * Math.PI) / 180;
-  const dist  = 90 + Math.random() * 130;
-  return {
-    id: i,
-    color:    CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-    tx:       Math.cos(rad) * dist,
-    ty:       Math.sin(rad) * dist,
-    size:     4 + Math.random() * 7,
-    isSquare: i % 3 === 0,
-    delay:    Math.random() * 120,
-    spin:     180 + Math.random() * 360,
-  };
-});
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const CIRCLE_R = 46;
@@ -46,6 +31,8 @@ const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_R;
 
 // ── Component ────────────────────────────────────────────────────────────────
 export function TransactionSuccessScreen({ route, navigation }: any) {
+  const { isLowEnd } = useDeviceCapability();
+
   const {
     txId         = '',
     amount       = '0',
@@ -59,6 +46,26 @@ export function TransactionSuccessScreen({ route, navigation }: any) {
     status       = 'pending',
     confirmations = 0,
   } = route.params ?? {};
+
+  // Dynamic particle count based on device capability
+  const PARTICLE_COUNT = isLowEnd ? 8 : 32;
+  const PARTICLES = useMemo(() =>
+    Array.from({ length: PARTICLE_COUNT }, (_, i) => {
+      const angle = (360 / PARTICLE_COUNT) * i + (Math.random() - 0.5) * 24;
+      const rad   = (angle * Math.PI) / 180;
+      const dist  = 90 + Math.random() * 130;
+      return {
+        id: i,
+        color:    CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        tx:       Math.cos(rad) * dist,
+        ty:       Math.sin(rad) * dist,
+        size:     4 + Math.random() * 7,
+        isSquare: i % 3 === 0,
+        delay:    Math.random() * 120,
+        spin:     180 + Math.random() * 360,
+      };
+    }),
+  [PARTICLE_COUNT]);
 
   // ── Animations ──────────────────────────────────────────────────────────────
   const screenOpacity = useRef(new Animated.Value(0)).current;
@@ -75,7 +82,7 @@ export function TransactionSuccessScreen({ route, navigation }: any) {
   const glowOpacity   = useRef(new Animated.Value(0)).current;
 
   const particleAnims = useRef(
-    PARTICLES.map(() => ({
+    Array.from({ length: PARTICLE_COUNT }, () => ({
       pos:     new Animated.ValueXY({ x: 0, y: 0 }),
       opacity: new Animated.Value(0),
       rotate:  new Animated.Value(0),

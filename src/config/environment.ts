@@ -62,10 +62,14 @@ export const config: EnvironmentConfig = ENVIRONMENTS[ENV];
 export const BOOTSTRAP_NODES = {
   development: [
     '62.84.187.126:5005',
+    '62.84.187.126:5006',
+    '62.84.187.126:5007',
   ],
 
   production: [
     '62.84.187.126:5005',
+    '62.84.187.126:5006',
+    '62.84.187.126:5007',
   ],
 };
 
@@ -106,6 +110,16 @@ export const API_ENDPOINTS = {
   currentBlock: '/api/blocks/current',
   blockHistory: '/api/blocks/history',
   submitShare: '/api/blocks/submit-share',
+
+  // Block Explorer
+  explorerStats: '/api/explorer/stats',
+  explorerBlocks: '/api/explorer/blocks',
+  explorerBlock: '/api/explorer/block',
+  explorerTransaction: '/api/explorer/transaction',
+  explorerAddress: '/api/explorer/address',
+  explorerMiners: '/api/explorer/miners/top',
+  explorerTransactions: '/api/explorer/transactions/recent',
+  explorerSearch: '/api/explorer/search',
 
   // P2P Network
   p2pPeers: '/api/p2p/peers',

@@ -526,10 +526,25 @@ export class NetworkService {
       });
 
       if (!response.ok) {
-        // If 401 Unauthorized, clear the invalid token
+        // If 401 Unauthorized: clear stale token, re-auth, retry once
         if (response.status === 401) {
-          console.log('🔓 Auth token invalid/expired, clearing token');
+          console.log('🔓 Auth token invalid/expired — re-authenticating...');
           await AsyncStorage.removeItem('@aura50_auth_token');
+          const freshToken = await this.reAuthWithStoredCredentials();
+          if (freshToken) {
+            console.log('🔄 Retrying share submission with fresh token...');
+            const retry = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${freshToken}` },
+              body: JSON.stringify(share),
+            });
+            if (retry.ok) {
+              const result = await retry.json();
+              console.log('✅ Mining share accepted (after re-auth):', result);
+              return result;
+            }
+            console.warn('⚠️ Share retry after re-auth also failed:', retry.status);
+          }
         }
 
         // Try to parse error as JSON
@@ -601,6 +616,38 @@ export class NetworkService {
       console.error('Failed to get auth token:', error);
       return null;
     }
+  }
+
+  /** Re-authenticate using stored credentials (set during wallet setup). */
+  private async reAuthWithStoredCredentials(): Promise<string | null> {
+    try {
+      const email    = await AsyncStorage.getItem('@aura50_auth_email');
+      const password = await AsyncStorage.getItem('@aura50_auth_pass');
+      if (!email || !password) {
+        console.warn('⚠️ reAuth: no stored credentials found');
+        return null;
+      }
+      const res = await fetch(`${this.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const token = data.token;
+        if (token) {
+          await AsyncStorage.setItem('@aura50_auth_token', token);
+          console.log('✅ Re-authenticated successfully');
+          return token;
+        }
+      } else {
+        const err = await res.json().catch(() => ({})) as any;
+        console.warn(`⚠️ reAuth login failed: HTTP ${res.status} — ${err?.message || ''}`);
+      }
+    } catch (e) {
+      console.warn('⚠️ reAuth exception:', e);
+    }
+    return null;
   }
 
   // Transaction Broadcasting

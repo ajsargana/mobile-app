@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { AppConfig, NotificationConfig, BiometricConfig } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useDeviceCapability, type OverrideSetting } from '../contexts/DeviceCapabilityContext';
 import { languages } from '../i18n/languages';
 import NotificationService from '../services/NotificationService';
 import AchievementsSheet from './AchievementsSheet';
@@ -37,6 +38,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
   const { t } = useTranslation();
   const { colors, isDark, toggleTheme } = useTheme();
   const { currentLanguage } = useLanguage();
+  const { perfTier, overrideSetting, overrideTier } = useDeviceCapability();
   const [config, setConfig] = useState<AppConfig>({
     nodeEndpoint: 'wss://bootstrap.AURA5O.network',
     p2pBootstrapNodes: [
@@ -303,6 +305,63 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           }
         />
 
+        {/* Performance Mode selector */}
+        <SettingItem
+          title="Performance Mode"
+          subtitle={
+            overrideSetting === 'auto'
+              ? `Auto-detected: ${perfTier}`
+              : overrideSetting === 'lite' ? 'Lite mode' : 'Full mode'
+          }
+          icon="speedometer"
+          rightComponent={
+            <View style={{ flexDirection: 'row', gap: 4 }}>
+              {(['auto', 'full', 'lite'] as const).map(opt => (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => overrideTier(opt)}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 8,
+                    backgroundColor: overrideSetting === opt
+                      ? colors.accent
+                      : (isDark ? 'rgba(255,255,255,0.07)' : '#F3F4F6'),
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color: overrideSetting === opt ? '#FFF' : colors.textMuted,
+                  }}>
+                    {opt === 'auto' ? 'Auto' : opt === 'lite' ? 'Lite' : 'Full'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                onPress={async () => {
+                  await AsyncStorage.removeItem('@aura50_perf_tier_override');
+                  await overrideTier('auto');
+                }}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                  borderRadius: 8,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#F3F4F6',
+                }}
+              >
+                <Text style={{
+                  fontSize: 10,
+                  fontWeight: '600',
+                  color: colors.textMuted,
+                }}>
+                  Reset
+                </Text>
+              </TouchableOpacity>
+            </View>
+          }
+        />
+
         <SettingItem
           title="Start Tour"
           subtitle="Guided walkthrough of all AURA50 features"
@@ -327,6 +386,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           subtitle="Guides, tours and frequently asked questions"
           icon="help-circle"
           onPress={() => navigation.navigate('Help')}
+          showArrow
+        />
+
+        <SettingItem
+          title="Block Explorer"
+          subtitle="View blockchain transactions and network stats"
+          icon="search"
+          onPress={() => navigation.navigate('BlockExplorer')}
           showArrow
         />
 

@@ -18,6 +18,7 @@ import { User, TrustLevel } from '../types';
 import { QRScannerModal } from './QRScannerModal';
 import config from '../config/environment';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import ThemedCard from './ThemedCard';
 
 interface WalletSetupScreenProps {
@@ -27,6 +28,7 @@ interface WalletSetupScreenProps {
 
 export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation, onWalletCreated }) => {
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
   const [step, setStep] = useState(1);
   const [mnemonic, setMnemonic] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -34,6 +36,12 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
   const [hasCopied, setHasCopied] = useState(false);
   const [referralCode, setReferralCode] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@aura50_pending_referral_code').then(code => {
+      if (code) setReferralCode(code);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (step === 2 && mnemonic.length === 0) {
@@ -111,6 +119,9 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
         const data = await response.json();
         await AsyncStorage.setItem('@aura50_auth_token', data.token);
         await AsyncStorage.setItem('@aura50_user_id', data.user.id);
+        // Persist credentials so MiningService can silently re-authenticate after token expiry
+        await AsyncStorage.setItem('@aura50_auth_email', `${currentAccount.address.substring(0, 10)}@aura50.local`);
+        await AsyncStorage.setItem('@aura50_auth_pass', validPassword);
 
         // Set user data
         walletService.setUser({
@@ -248,7 +259,7 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
         <Ionicons name="wallet" size={64} color="#667eea" />
       </View>
 
-      <Text style={styles.stepTitle}>Create New Wallet</Text>
+      <Text style={styles.stepTitle}>{t('auth.createWallet')}</Text>
       <Text style={styles.stepDescription}>
         You're about to create a new AURA50 wallet. This wallet will allow you to:
       </Text>
@@ -315,7 +326,7 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
         style={styles.primaryButton}
         onPress={() => setStep(2)}
       >
-        <Text style={styles.primaryButtonText}>Continue</Text>
+        <Text style={styles.primaryButtonText}>{t('common.continue')}</Text>
         <Ionicons name="arrow-forward" size={20} color="#FFF" />
       </TouchableOpacity>
 
@@ -386,7 +397,7 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
             style={styles.secondaryButton}
             onPress={() => setStep(1)}
           >
-            <Text style={styles.secondaryButtonText}>Back</Text>
+            <Text style={styles.secondaryButtonText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </>
       )}
@@ -399,7 +410,7 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
         <Ionicons name="checkmark-done-circle" size={64} color="#667eea" />
       </View>
 
-      <Text style={styles.stepTitle}>Confirm Backup</Text>
+      <Text style={styles.stepTitle}>{t('common.confirm')}</Text>
       <Text style={styles.stepDescription}>
         Before we continue, please confirm that you have securely stored your recovery phrase.
       </Text>

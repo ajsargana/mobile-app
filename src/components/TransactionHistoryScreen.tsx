@@ -608,12 +608,12 @@ export const TransactionHistoryScreen = ({ route }: any) => {
               <Text style={[styles.transactionDate, { color: colors.textMuted }]}>{formatDate(item.timestamp)}</Text>
               {type === 'Sent' && item.to && (
                 <Text style={[styles.transactionAddress, { color: colors.textMuted }]} numberOfLines={1}>
-                  To: {item.to.substring(0, 12)}...
+                  To: {item.to ? item.to.substring(0, 12) : 'N/A'}...
                 </Text>
               )}
               {type === 'Received' && item.from && (
                 <Text style={[styles.transactionAddress, { color: colors.textMuted }]} numberOfLines={1}>
-                  From: {item.from.substring(0, 12)}...
+                  From: {item.from ? item.from.substring(0, 12) : 'N/A'}...
                 </Text>
               )}
             </View>

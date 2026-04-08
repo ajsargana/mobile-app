@@ -36,7 +36,19 @@
       "Bash(git rm:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s \"http://62.84.187.126:5005/api/explorer/blocks?limit=2&offset=0\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"http://62.84.187.126:5005/api/explorer/miners/top?limit=3\")",
+      "Bash(curl -s \"http://62.84.187.126:5005/api/explorer/transactions/recent?limit=2\")",
+      "Bash(ls -la C:/Users/ajsar/Downloads/mobile-apps/*.json)",
+      "Bash(ls:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(./android/gradlew assembleRelease --console=plain)",
+      "Bash(./gradlew assembleRelease --console=plain)",
+      "Bash(npm ls:*)",
+      "Bash(./gradlew.bat assembleRelease)"
     ]
   }
 }

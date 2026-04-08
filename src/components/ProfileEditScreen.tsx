@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,12 +16,23 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { useDeviceCapability } from '../contexts/DeviceCapabilityContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MotiView } from 'moti';
+
+// Lazy-load BlurView only when needed (avoid OOM on 2GB devices)
+let BlurViewComponent: any = null;
+function getBlurView() {
+  if (BlurViewComponent) return BlurViewComponent;
+  try {
+    BlurViewComponent = require('expo-blur').BlurView;
+  } catch {
+    BlurViewComponent = View; // fallback
+  }
+  return BlurViewComponent;
+}
 
 export const DISPLAY_NAME_KEY = '@aura50_display_name';
 export const PROFILE_PIC_KEY  = '@aura50_profile_picture';
@@ -32,6 +43,7 @@ interface ProfileEditScreenProps {
 
 export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation }) => {
   const { colors, isDark } = useTheme();
+  const { isLowEnd } = useDeviceCapability();
   const insets = useSafeAreaInsets();
 
   const [displayName, setDisplayName] = useState('');
@@ -40,8 +52,18 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
   const [dirty, setDirty]             = useState(false);
   const [focused, setFocused]         = useState(false);
 
-  const borderAnim = useRef(new Animated.Value(0)).current;
-  const saveScale  = useRef(new Animated.Value(1)).current;
+  const borderAnim  = useRef(new Animated.Value(0)).current;
+  const saveScale   = useRef(new Animated.Value(1)).current;
+  const BlurView = useMemo(() => getBlurView(), []);
+
+  // Entrance animations — full tier only, always created (hook rules)
+  const avatarOpacity  = useRef(new Animated.Value(0)).current;
+  const avatarSlide    = useRef(new Animated.Value(-12)).current;
+  const badgeScale     = useRef(new Animated.Value(0)).current;
+  const cardOpacity    = useRef(new Animated.Value(0)).current;
+  const cardSlide      = useRef(new Animated.Value(16)).current;
+  const saveOpacity    = useRef(new Animated.Value(0)).current;
+  const saveSlide      = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
     (async () => {
@@ -52,6 +74,38 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
       if (name) setDisplayName(name);
       if (pic)  setProfileUri(pic);
     })();
+  }, []);
+
+  // Entrance animations — only run on full-tier devices
+  useEffect(() => {
+    if (isLowEnd) return;
+    Animated.parallel([
+      Animated.sequence([
+        Animated.delay(60),
+        Animated.parallel([
+          Animated.timing(avatarOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+          Animated.spring(avatarSlide,   { toValue: 0, damping: 18, useNativeDriver: true }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(280),
+        Animated.spring(badgeScale, { toValue: 1, damping: 12, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.delay(130),
+        Animated.parallel([
+          Animated.timing(cardOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+          Animated.spring(cardSlide,   { toValue: 0, damping: 18, useNativeDriver: true }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(200),
+        Animated.parallel([
+          Animated.timing(saveOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+          Animated.spring(saveSlide,   { toValue: 0, damping: 18, useNativeDriver: true }),
+        ]),
+      ]),
+    ]).start();
   }, []);
 
   const animateBorder = useCallback((to: number) => {
@@ -190,47 +244,145 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
   const cardBg   = isDark ? 'rgba(20,35,50,0.85)' : 'rgba(255,255,255,0.82)';
   const ringBg   = isDark ? '#0D1B2A'  : '#F0F4F8';
 
+  // Shared header children — avoids duplicating JSX across BlurView/View branch
+  const headerChildren = (
+    <>
+      <TouchableOpacity
+        style={styles.headerBtn}
+        onPress={() => navigation.goBack()}
+        accessibilityLabel="Go back"
+      >
+        <View style={[styles.headerBtnInner, { backgroundColor: isDark ? 'rgba(93,173,226,0.12)' : 'rgba(37,99,235,0.08)' }]}>
+          <Ionicons name="chevron-back" size={20} color={colors.accent} />
+        </View>
+      </TouchableOpacity>
+
+      <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Edit Profile</Text>
+
+      <TouchableOpacity
+        style={styles.headerBtn}
+        onPress={handleSave}
+        disabled={saving}
+        accessibilityLabel="Save profile"
+      >
+        {saving
+          ? <ActivityIndicator size="small" color={colors.accent} style={styles.headerBtnInner} />
+          : <Text style={[styles.headerSave, { color: dirty ? colors.accent : colors.textMuted }]}>
+              Save
+            </Text>
+        }
+      </TouchableOpacity>
+    </>
+  );
+
+  // Inner content shared across card wrapper branches
+  const cardChildren = (
+    <>
+      {/* Frosted glass layer — full tier iOS only */}
+      {!isLowEnd && Platform.OS === 'ios' && (
+        <BlurView
+          intensity={isDark ? 45 : 65}
+          tint={isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      <View style={styles.cardContent}>
+        <Text style={[styles.sectionLabel, { color: colors.accent }]}>DISPLAY NAME</Text>
+
+        <Animated.View style={[
+          styles.inputWrapper,
+          {
+            borderColor: animatedBorderColor,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+          },
+        ]}>
+          <Ionicons
+            name="person-outline"
+            size={16}
+            color={focused ? colors.accent : colors.textMuted}
+            style={styles.inputIcon}
+          />
+          <TextInput
+            style={[styles.input, { color: colors.textPrimary }]}
+            value={displayName}
+            onChangeText={t => { setDisplayName(t); setDirty(true); }}
+            placeholder="Your display name"
+            placeholderTextColor={colors.placeholder}
+            maxLength={32}
+            autoCorrect={false}
+            onFocus={() => { setFocused(true);  animateBorder(1); }}
+            onBlur={() =>  { setFocused(false); animateBorder(0); }}
+            returnKeyType="done"
+          />
+          <Text style={[styles.charCount, { color: displayName.length >= 28 ? colors.danger : colors.textMuted }]}>
+            {displayName.length}/32
+          </Text>
+        </Animated.View>
+
+        <View style={[styles.divider, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]} />
+
+        <View style={styles.noteRow}>
+          <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
+          <Text style={[styles.noteText, { color: colors.textMuted }]}>
+            Stored locally — never shared with the network
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+
+  const cardStyle = [styles.cardOuter, {
+    borderColor: isDark ? 'rgba(93,173,226,0.15)' : 'rgba(37,99,235,0.12)',
+    backgroundColor: cardBg,
+  }];
+
+  // Save button inner — shared
+  const saveButtonInner = (
+    <Animated.View style={{ transform: [{ scale: saveScale }] }}>
+      <TouchableOpacity
+        style={[styles.saveBtn, { opacity: saving ? 0.7 : 1 }]}
+        onPress={handleSave}
+        disabled={saving}
+        activeOpacity={0.88}
+        accessibilityLabel="Save profile"
+        accessibilityRole="button"
+      >
+        <LinearGradient
+          colors={[colors.accent, colors.accentAlt]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.saveBtnGrad}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle-outline" size={19} color="#FFF" />
+              <Text style={styles.saveBtnText}>Save Profile</Text>
+            </>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
   return (
     <View style={[styles.screen, { backgroundColor: bgColor }]}>
 
-      {/* ── Header — blur on iOS, solid on Android ──────────────────────── */}
-      <BlurView
-        intensity={Platform.OS === 'ios' ? (isDark ? 55 : 75) : 0}
-        tint={isDark ? 'dark' : 'light'}
-        style={[
-          styles.header,
-          { paddingTop: insets.top + 6, backgroundColor: Platform.OS === 'android' ? bgColor : 'transparent' },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Go back"
+      {/* ── Header: BlurView on full-tier iOS, plain View everywhere else ── */}
+      {!isLowEnd && Platform.OS === 'ios' ? (
+        <BlurView
+          intensity={isDark ? 55 : 75}
+          tint={isDark ? 'dark' : 'light'}
+          style={[styles.header, { paddingTop: insets.top + 6 }]}
         >
-          <View style={[styles.headerBtnInner, { backgroundColor: isDark ? 'rgba(93,173,226,0.12)' : 'rgba(37,99,235,0.08)' }]}>
-            <Ionicons name="chevron-back" size={20} color={colors.accent} />
-          </View>
-        </TouchableOpacity>
-
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Edit Profile</Text>
-
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={handleSave}
-          disabled={saving}
-          accessibilityLabel="Save profile"
-        >
-          {saving
-            ? <ActivityIndicator size="small" color={colors.accent} style={styles.headerBtnInner} />
-            : <Text style={[
-                styles.headerSave,
-                { color: dirty ? colors.accent : colors.textMuted },
-              ]}>
-                Save
-              </Text>
-          }
-        </TouchableOpacity>
-      </BlurView>
+          {headerChildren}
+        </BlurView>
+      ) : (
+        <View style={[styles.header, { paddingTop: insets.top + 6, backgroundColor: bgColor }]}>
+          {headerChildren}
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -239,175 +391,71 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
       >
 
         {/* ── Avatar section ──────────────────────────────────────────────── */}
-        <MotiView
-          from={{ opacity: 0, translateY: -12 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 60, damping: 18 }}
-          style={styles.avatarSection}
-        >
-          <TouchableOpacity
-            onPress={showPhotoOptions}
-            activeOpacity={0.82}
-            accessibilityLabel="Change profile photo"
-            accessibilityRole="button"
-          >
-            {/* Gradient glow ring */}
-            <LinearGradient
-              colors={isDark
-                ? ['#5DADE2', '#8E44AD', '#E74C3C', '#5DADE2']
-                : ['#2563EB', '#7C3AED', '#DB2777', '#2563EB']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatarRing}
-            >
-              {/* Inner gap ring */}
-              <View style={[styles.avatarGap, { backgroundColor: ringBg }]}>
-                {profileUri ? (
-                  <Image
-                    source={{ uri: profileUri }}
-                    style={styles.avatarImage}
-                    accessibilityLabel="Profile picture"
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={isDark ? ['#1A2B3C', '#243447'] : ['#E8F4FD', '#D6EAF8']}
-                    style={styles.avatarPlaceholder}
-                  >
-                    <Ionicons name="person" size={54} color={colors.accent} />
-                  </LinearGradient>
-                )}
-              </View>
-            </LinearGradient>
-
-            {/* Camera badge */}
-            <MotiView
-              from={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', delay: 280, damping: 12 }}
-              style={styles.cameraBadge}
-            >
+        {isLowEnd ? (
+          <View style={styles.avatarSection}>
+            <TouchableOpacity onPress={showPhotoOptions} activeOpacity={0.82} accessibilityLabel="Change profile photo" accessibilityRole="button">
               <LinearGradient
-                colors={[colors.accent, colors.accentAlt]}
-                style={styles.cameraBadgeGrad}
+                colors={isDark ? ['#5DADE2', '#8E44AD', '#E74C3C', '#5DADE2'] : ['#2563EB', '#7C3AED', '#DB2777', '#2563EB']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.avatarRing}
               >
-                <Ionicons name="camera" size={13} color="#FFF" />
+                <View style={[styles.avatarGap, { backgroundColor: ringBg }]}>
+                  {profileUri
+                    ? <Image source={{ uri: profileUri }} style={styles.avatarImage} accessibilityLabel="Profile picture" />
+                    : <LinearGradient colors={isDark ? ['#1A2B3C', '#243447'] : ['#E8F4FD', '#D6EAF8']} style={styles.avatarPlaceholder}><Ionicons name="person" size={54} color={colors.accent} /></LinearGradient>
+                  }
+                </View>
               </LinearGradient>
-            </MotiView>
-          </TouchableOpacity>
-
-          <Text style={[styles.avatarHint, { color: colors.textMuted }]}>
-            Tap to change photo
-          </Text>
-        </MotiView>
-
-        {/* ── Form glass card ─────────────────────────────────────────────── */}
-        <MotiView
-          from={{ opacity: 0, translateY: 16 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 130, damping: 18 }}
-          style={[styles.cardOuter, {
-            borderColor: isDark ? 'rgba(93,173,226,0.15)' : 'rgba(37,99,235,0.12)',
-            backgroundColor: cardBg,
-          }]}
-        >
-          {/* iOS only: frosted glass layer — skipped on Android to keep render cost low */}
-          {Platform.OS === 'ios' && (
-            <BlurView
-              intensity={isDark ? 45 : 65}
-              tint={isDark ? 'dark' : 'light'}
-              style={StyleSheet.absoluteFill}
-            />
-          )}
-          <View style={styles.cardContent}>
-
-            {/* Section label */}
-            <Text style={[styles.sectionLabel, { color: colors.accent }]}>
-              DISPLAY NAME
-            </Text>
-
-            {/* Animated input */}
-            <Animated.View style={[
-              styles.inputWrapper,
-              {
-                borderColor: animatedBorderColor,
-                backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-              },
-            ]}>
-              <Ionicons
-                name="person-outline"
-                size={16}
-                color={focused ? colors.accent : colors.textMuted}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary }]}
-                value={displayName}
-                onChangeText={t => { setDisplayName(t); setDirty(true); }}
-                placeholder="Your display name"
-                placeholderTextColor={colors.placeholder}
-                maxLength={32}
-                autoCorrect={false}
-                onFocus={() => { setFocused(true);  animateBorder(1); }}
-                onBlur={() =>  { setFocused(false); animateBorder(0); }}
-                returnKeyType="done"
-              />
-              <Text style={[
-                styles.charCount,
-                { color: displayName.length >= 28 ? colors.danger : colors.textMuted },
-              ]}>
-                {displayName.length}/32
-              </Text>
-            </Animated.View>
-
-            {/* Divider */}
-            <View style={[styles.divider, {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-            }]} />
-
-            {/* Privacy note */}
-            <View style={styles.noteRow}>
-              <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
-              <Text style={[styles.noteText, { color: colors.textMuted }]}>
-                Stored locally — never shared with the network
-              </Text>
-            </View>
-
+              <View style={styles.cameraBadge}>
+                <LinearGradient colors={[colors.accent, colors.accentAlt]} style={styles.cameraBadgeGrad}>
+                  <Ionicons name="camera" size={13} color="#FFF" />
+                </LinearGradient>
+              </View>
+            </TouchableOpacity>
+            <Text style={[styles.avatarHint, { color: colors.textMuted }]}>Tap to change photo</Text>
           </View>
-        </MotiView>
+        ) : (
+          <Animated.View style={[styles.avatarSection, { opacity: avatarOpacity, transform: [{ translateY: avatarSlide }] }]}>
+            <TouchableOpacity onPress={showPhotoOptions} activeOpacity={0.82} accessibilityLabel="Change profile photo" accessibilityRole="button">
+              <LinearGradient
+                colors={isDark ? ['#5DADE2', '#8E44AD', '#E74C3C', '#5DADE2'] : ['#2563EB', '#7C3AED', '#DB2777', '#2563EB']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.avatarRing}
+              >
+                <View style={[styles.avatarGap, { backgroundColor: ringBg }]}>
+                  {profileUri
+                    ? <Image source={{ uri: profileUri }} style={styles.avatarImage} accessibilityLabel="Profile picture" />
+                    : <LinearGradient colors={isDark ? ['#1A2B3C', '#243447'] : ['#E8F4FD', '#D6EAF8']} style={styles.avatarPlaceholder}><Ionicons name="person" size={54} color={colors.accent} /></LinearGradient>
+                  }
+                </View>
+              </LinearGradient>
+              <Animated.View style={[styles.cameraBadge, { transform: [{ scale: badgeScale }] }]}>
+                <LinearGradient colors={[colors.accent, colors.accentAlt]} style={styles.cameraBadgeGrad}>
+                  <Ionicons name="camera" size={13} color="#FFF" />
+                </LinearGradient>
+              </Animated.View>
+            </TouchableOpacity>
+            <Text style={[styles.avatarHint, { color: colors.textMuted }]}>Tap to change photo</Text>
+          </Animated.View>
+        )}
+
+        {/* ── Form card ───────────────────────────────────────────────────── */}
+        {isLowEnd ? (
+          <View style={cardStyle}>{cardChildren}</View>
+        ) : (
+          <Animated.View style={[cardStyle, { opacity: cardOpacity, transform: [{ translateY: cardSlide }] }]}>
+            {cardChildren}
+          </Animated.View>
+        )}
 
         {/* ── Save button ─────────────────────────────────────────────────── */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 200, damping: 18 }}
-        >
-          <Animated.View style={{ transform: [{ scale: saveScale }] }}>
-            <TouchableOpacity
-              style={[styles.saveBtn, { opacity: saving ? 0.7 : 1 }]}
-              onPress={handleSave}
-              disabled={saving}
-              activeOpacity={0.88}
-              accessibilityLabel="Save profile"
-              accessibilityRole="button"
-            >
-              <LinearGradient
-                colors={[colors.accent, colors.accentAlt]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.saveBtnGrad}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-circle-outline" size={19} color="#FFF" />
-                    <Text style={styles.saveBtnText}>Save Profile</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+        {isLowEnd ? (
+          saveButtonInner
+        ) : (
+          <Animated.View style={{ opacity: saveOpacity, transform: [{ translateY: saveSlide }] }}>
+            {saveButtonInner}
           </Animated.View>
-        </MotiView>
+        )}
 
       </ScrollView>
     </View>

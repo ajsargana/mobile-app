@@ -37,4 +37,15 @@ class SoundService {
   }
 }
 
-export const soundService = SoundService.getInstance();
+// Lazy-initialize on first use (avoids loading expo-av on 2GB devices at startup)
+let instance: SoundService | null = null;
+export const soundService = {
+  async loadSounds() {
+    if (!instance) instance = SoundService.getInstance();
+    return instance.loadSounds();
+  },
+  async playCoinSound() {
+    if (!instance) instance = SoundService.getInstance();
+    return instance.playCoinSound();
+  },
+};

@@ -157,7 +157,7 @@ export const ReceiveTransactionScreen = () => {
         <Text style={[styles.transactionTime, { color: colors.textMuted }]}>{formatDate(item.timestamp)}</Text>
         {item.hash && (
           <Text style={[styles.transactionHash, { color: colors.textMuted }]} numberOfLines={1}>
-            {item.hash.substring(0, 16)}...
+            {item.hash ? item.hash.substring(0, 16) + '...' : 'N/A'}
           </Text>
         )}
       </View>

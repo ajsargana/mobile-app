@@ -25,6 +25,7 @@ import SecurityCircleService from '../services/SecurityCircleService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
 import { getApiUrl, API_ENDPOINTS } from '../config/environment';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import ThemedCard from './ThemedCard';
 
 const { width: SW } = Dimensions.get('window');
@@ -215,11 +216,15 @@ const LeaderboardRow = memo(({ entry, idx, isLast, isDark, colors, onAvatarPress
 
 interface LeaderboardScreenProps {
   navigation: any;
+  route?: any;
 }
 
-export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
+export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
+  const scrollRef = useRef<ScrollView>(null);
+  const inviteSectionY = useRef(0);
 
   // Security circle state
   const [progress, setProgress] = useState<CircleProgress>({
@@ -316,6 +321,16 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
   // Re-fetch leaderboard when scope changes (passes scope as query param)
   useEffect(() => { loadLeaderboard(); }, [activeScope]);
 
+  // Auto-scroll to invite section when navigated from referral capsule
+  useEffect(() => {
+    if (route?.params?.scrollToInvite) {
+      const t = setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: inviteSectionY.current, animated: true });
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [route?.params?.scrollToInvite]);
+
   const loadAll = async () => {
     await Promise.all([loadCircleData(), loadLeaderboard(), loadCurrentUser()]);
   };
@@ -369,9 +384,11 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
 
   const shareInviteLink = async (inviteCode: string) => {
     try {
+      const downloadUrl = `https://bit.ly/4diFeIj?ref=${inviteCode}`;
       await Share.share({
-        message: `Join AURA50 - the world's first mobile blockchain!\n\nUse my referral code: ${inviteCode}\n\nEarn A50 tokens by participating in the network!`,
+        message: `🚀 Don't miss out on AURA50 - The world's first mobile blockchain!\n\nStart earning A50 today. Early participants get the biggest Rewards 💰\n\n Use my referral code: ${inviteCode}\n\nDownload App: ${downloadUrl}\n\nCheck for more details: aura50.org`,
         title: 'Join My AURA50 Security Circle',
+        url: downloadUrl,
       });
     } catch (error) {
       console.error('Share failed:', error);
@@ -383,8 +400,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
       'Security Circle',
       '1. Generate invite links for people you trust\n\n' +
       '2. They must register and complete their first mining session\n\n' +
-      '3. Once all 3 invites are active, your wallet unlocks\n\n' +
-      '4. If someone invited you, they must also mine first\n\n' +
+      '3. Once all 3 invites are active, your wallet status upgrades\n\n' +
       'Choose trusted people — this protects against fake accounts!',
       [{ text: 'Got it!' }]
     );
@@ -466,6 +482,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
   return (
     <>
     <ScrollView
+      ref={scrollRef}
       style={[styles.container, { backgroundColor: colors.bg }]}
       contentContainerStyle={{ paddingBottom: 36 }}
       refreshControl={
@@ -676,7 +693,7 @@ export function LeaderboardScreen({ navigation }: LeaderboardScreenProps) {
       </View>
 
       {/* ── Security Circle section ── */}
-      <View style={styles.section}>
+      <View style={styles.section} onLayout={e => { inviteSectionY.current = e.nativeEvent.layout.y; }}>
         <View style={styles.sectionLabelRow}>
           <Ionicons name="shield-checkmark" size={16} color="#5DADE2" />
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Security Circle</Text>

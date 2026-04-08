@@ -121,7 +121,7 @@ export class MobileReferralService {
       // Add app download QR
       qrCodes.push({
         type: 'app-download',
-        data: `${baseUrl}/download?ref=${mobileData.referralCode}`,
+        data: `https://aura50.org/downloads/aura50.apk?ref=${mobileData.referralCode}`,
         imageUrl: `${baseUrl}/api/referrals/qr/app-download-${mobileData.referralCode}`
       });
 
@@ -165,37 +165,38 @@ export class MobileReferralService {
   }
 
   // Generate mobile-optimized social sharing options
-  private generateSocialSharing(user: any, baseUrl: string): SocialShareData[] {
-    const referralMessage = `🚀 Join AURA5O - the world's first mobile-native blockchain! Start mining on your phone and earn A50 tokens. Use my referral code: ${user.referralCode}`;
+  private generateSocialSharing(user: any, _baseUrl: string): SocialShareData[] {
+    const downloadUrl = `https://aura50.org/downloads/aura50.apk?ref=${user.referralCode}`;
+    const referralMessage = `Join AURA50 - the world's first mobile-native blockchain! Start mining on your phone and earn A50 tokens. Use my referral code: ${user.referralCode}`;
 
     return [
       {
         platform: 'whatsapp',
         title: 'Share on WhatsApp',
         message: referralMessage,
-        url: `whatsapp://send?text=${encodeURIComponent(referralMessage + ' ' + baseUrl + '?ref=' + user.referralCode)}`,
-        deepLink: `${baseUrl}?ref=${user.referralCode}&source=whatsapp`
+        url: `whatsapp://send?text=${encodeURIComponent(referralMessage + '\n\nDownload: ' + downloadUrl)}`,
+        deepLink: downloadUrl
       },
       {
         platform: 'telegram',
         title: 'Share on Telegram',
         message: referralMessage,
-        url: `tg://msg_url?url=${encodeURIComponent(baseUrl + '?ref=' + user.referralCode)}&text=${encodeURIComponent(referralMessage)}`,
-        deepLink: `${baseUrl}?ref=${user.referralCode}&source=telegram`
+        url: `tg://msg_url?url=${encodeURIComponent(downloadUrl)}&text=${encodeURIComponent(referralMessage)}`,
+        deepLink: downloadUrl
       },
       {
         platform: 'sms',
         title: 'Share via SMS',
         message: referralMessage,
-        url: `sms:?body=${encodeURIComponent(referralMessage + ' Download: ' + baseUrl + '?ref=' + user.referralCode)}`,
-        deepLink: `${baseUrl}?ref=${user.referralCode}&source=sms`
+        url: `sms:?body=${encodeURIComponent(referralMessage + '\n\nDownload: ' + downloadUrl)}`,
+        deepLink: downloadUrl
       },
       {
         platform: 'contacts',
         title: 'Share with Contacts',
         message: referralMessage,
         url: '', // Handled by native contact picker
-        deepLink: `${baseUrl}?ref=${user.referralCode}&source=contacts`
+        deepLink: downloadUrl
       }
     ];
   }
@@ -496,25 +497,26 @@ export class MobileReferralService {
     const trustMultiplier = this.calculateTrustMultiplier(trustLevel);
     const { totalEarnings, totalReferrals } = await this.getLocalReferralStats();
 
-    const baseUrl = 'https://AURA5O.com';
+    const fallbackBaseUrl = config.baseUrl;
     const appScheme = 'AURA5O://';
     const referralCode = user?.referralCode || 'DEMO';
+    const downloadUrl = `https://aura50.org/downloads/aura50.apk?ref=${referralCode}`;
 
     return {
       referralCode,
       username: user?.username,
       deepLinks: [
         `${appScheme}join?ref=${referralCode}&source=mobile`,
-        `${baseUrl}?ref=${referralCode}&source=mobile`
+        downloadUrl
       ],
       qrCodes: [
         {
           type: 'code',
-          data: `${baseUrl}?ref=${referralCode}`,
-          imageUrl: `${baseUrl}/api/qr/code/${referralCode}`
+          data: `${fallbackBaseUrl}?ref=${referralCode}`,
+          imageUrl: `${fallbackBaseUrl}/api/qr/code/${referralCode}`
         }
       ],
-      socialSharing: this.generateSocialSharing(user || { referralCode }, baseUrl),
+      socialSharing: this.generateSocialSharing(user || { referralCode }, fallbackBaseUrl),
       trustMultiplier,
       totalEarnings,
       totalReferrals

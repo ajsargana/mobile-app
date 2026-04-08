@@ -1,19 +1,18 @@
-/**
- * GlassCard — reusable glassmorphism card for futuristic UI
- *
- * Usage:
- *   <GlassCard>
- *     <Text className="text-neon-cyan">Hello</Text>
- *   </GlassCard>
- *
- *   <GlassCard neon="cyan" animated>
- *     ...
- *   </GlassCard>
- */
-import React from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { MotiView } from 'moti';
+import React, { useRef, useEffect, useMemo } from 'react';
+import { StyleSheet, View, Animated, ViewStyle } from 'react-native';
+import { useDeviceCapability } from '../contexts/DeviceCapabilityContext';
+
+// Lazy-load BlurView only on full mode to avoid OOM on 2GB devices
+let BlurViewComponent: any = null;
+function getBlurView() {
+  if (BlurViewComponent) return BlurViewComponent;
+  try {
+    BlurViewComponent = require('expo-blur').BlurView;
+  } catch {
+    BlurViewComponent = View; // fallback if expo-blur fails
+  }
+  return BlurViewComponent;
+}
 
 type NeonColor = 'cyan' | 'blue' | 'purple' | 'pink' | 'green';
 
@@ -27,11 +26,8 @@ const NEON: Record<NeonColor, string> = {
 
 interface Props {
   children: React.ReactNode;
-  /** Neon border/glow accent color */
   neon?: NeonColor;
-  /** Blur intensity 0-100 (default 20) */
   blurIntensity?: number;
-  /** Animate card floating in on mount */
   animated?: boolean;
   style?: ViewStyle;
 }
@@ -43,8 +39,34 @@ export default function GlassCard({
   animated = false,
   style,
 }: Props) {
+  const { isLowEnd } = useDeviceCapability();
   const accentColor = neon ? NEON[neon] : 'rgba(255,255,255,0.15)';
 
+  // Always created — hooks cannot be conditional
+  const opacity    = useRef(new Animated.Value(animated && !isLowEnd ? 0 : 1)).current;
+  const translateY = useRef(new Animated.Value(animated && !isLowEnd ? 16 : 0)).current;
+
+  useEffect(() => {
+    if (!animated || isLowEnd) return;
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  // ── Lite mode: flat card, zero GPU-intensive effects ─────────────────────────
+  if (isLowEnd) {
+    return (
+      <View style={[styles.flatOuter, style]}>
+        <View style={[styles.flatInner, { borderColor: accentColor }]}>
+          {children}
+        </View>
+      </View>
+    );
+  }
+
+  // ── Full mode: glassmorphism + optional entrance animation ───────────────────
+  const BlurView = useMemo(() => getBlurView(), []);
   const card = (
     <BlurView intensity={blurIntensity} tint="dark" style={[styles.blur, style]}>
       <View style={[styles.inner, { borderColor: accentColor }]}>
@@ -59,17 +81,23 @@ export default function GlassCard({
   if (!animated) return card;
 
   return (
-    <MotiView
-      from={{ opacity: 0, translateY: 16 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      transition={{ type: 'timing', duration: 500 }}
-    >
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
       {card}
-    </MotiView>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  flatOuter: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(10, 30, 50, 0.85)',
+  },
+  flatInner: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+  },
   blur: {
     borderRadius: 16,
     overflow: 'hidden',

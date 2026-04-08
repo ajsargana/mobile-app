@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Animated,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useDeviceCapability } from '../contexts/DeviceCapabilityContext';
 import StreakService, { StreakData } from '../services/StreakService';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 
 const StreakCard: React.FC<Props> = ({ onPress, refreshKey = 0 }) => {
   const { colors, isDark } = useTheme();
+  const { isLowEnd } = useDeviceCapability();
   const [data, setData] = useState<StreakData>({ count: 0, best: 0, lastDate: null });
   const flameScale = useRef(new Animated.Value(1)).current;
 
@@ -19,9 +21,9 @@ const StreakCard: React.FC<Props> = ({ onPress, refreshKey = 0 }) => {
     StreakService.getInstance().getStreak().then(setData);
   }, [refreshKey]);
 
-  // Pulse flame animation when streak >= 7
+  // Pulse flame animation when streak >= 7 (skip on low-end)
   useEffect(() => {
-    if (data.count >= 7) {
+    if (data.count >= 7 && !isLowEnd) {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(flameScale, { toValue: 1.25, duration: 600, useNativeDriver: true }),
@@ -33,7 +35,7 @@ const StreakCard: React.FC<Props> = ({ onPress, refreshKey = 0 }) => {
     } else {
       flameScale.setValue(1);
     }
-  }, [data.count]);
+  }, [data.count, isLowEnd]);
 
   const multiplier  = StreakService.getInstance().getCooldownMultiplier(data.count);
   const hasBonus    = multiplier < 1.0;
