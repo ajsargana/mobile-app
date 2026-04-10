@@ -53,10 +53,12 @@ export const SendTransactionScreen = ({ navigation }: any) => {
 
       const walletService = EnhancedWalletService.getInstance();
 
-      // Get wallet balance
+      // Get wallet balance — subtract any locked staking coins so they can't be sent
       const wallet = walletService.getCurrentAccount();
       if (wallet) {
-        setBalance(wallet.balance);
+        const { StakingService } = require('../services/StakingService');
+        const available = StakingService.getInstance().getAvailableBalanceSync();
+        setBalance(available.toFixed(8));
       }
 
       // Get user trust level from stored profile

@@ -493,12 +493,16 @@ export class NetworkService {
     difficulty: number;
     hashesComputed?: number;
     timeElapsed?: number;
+    /** Staking share-weight multiplier, e.g. 1.20 for a 20% boost. Defaults to 1.0 (no stake). */
+    stakingBoost?: number;
   }): Promise<{
     accepted: boolean;
     reason?: string;
     message?: string;
     blockHeight?: number;
     acceptedShares?: number;
+    /** Staking boost the server actually applied to this share (e.g. 1.20). Present only on acceptance. */
+    appliedBoost?: number;
   }> {
     try {
       const authToken = await this.getAuthToken();

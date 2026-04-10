@@ -41,6 +41,7 @@ import StreakService from '../services/StreakService';
 import AchievementService from '../services/AchievementService';
 import NotificationService from '../services/NotificationService';
 import { soundService } from '../services/SoundService';
+import StakingService from '../services/StakingService';
 import StreakCard from './StreakCard';
 import DailyCheckInCard from './DailyCheckInCard';
 import AchievementsSheet from './AchievementsSheet';
@@ -111,6 +112,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const [achievementsOpen,  setAchievementsOpen]  = useState(false);
   const [achieveRefreshKey, setAchieveRefreshKey] = useState(0);
   const [toastText,         setToastText]         = useState('');
+  const [stakingBoost,      setStakingBoost]      = useState(1.0);
   const toastAnim = useRef(new Animated.Value(0)).current;
 
   // ── Onboarding state (steps 5-7 live on this screen) ─────────────────────
@@ -332,6 +334,13 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   // Re-read onboarding step when screen gains focus
   // Only advances (Math.max) to prevent stale reads from going backwards
   // Skips entirely once onboarding is complete (step >= 9)
+  useFocusEffect(useCallback(() => {
+    // Refresh staking boost on focus (user may have staked/unstaked)
+    StakingService.getInstance().getActiveStake().then(() => {
+      setStakingBoost(StakingService.getInstance().getBoostMultiplier());
+    });
+  }, []));
+
   useFocusEffect(useCallback(() => {
     // Re-read step — only advance, never go back
     AsyncStorage.getItem(ONBOARDING_STEP_KEY).then(step => {
@@ -726,6 +735,26 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           onCheckin={(count) => { setStreakCount(count); setStreakRefreshKey(k => k + 1); }}
           onNewBadges={(ids) => { setAchieveRefreshKey(k => k + 1); showAchievementToast(ids[0]); }}
         />
+
+        {/* ── Staking boost pill ── */}
+        {stakingBoost > 1.0 && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Staking')}
+            style={{
+              flexDirection: 'row', alignItems: 'center',
+              backgroundColor: 'rgba(93,173,226,0.12)',
+              borderColor: 'rgba(93,173,226,0.30)', borderWidth: 1,
+              borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+              marginBottom: 10,
+            }}
+          >
+            <Ionicons name="flash" size={16} color={colors.accent} style={{ marginRight: 6 }} />
+            <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700', flex: 1 }}>
+              +{((stakingBoost - 1) * 100).toFixed(1)}% Staking Boost Active
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+          </TouchableOpacity>
+        )}
 
         {/* ── History & Rewards (wrapped for onboarding step 7) ── */}
         <View ref={historyAreaRef}>

@@ -5,6 +5,7 @@ import { NetworkService } from './NetworkService';
 import { sha256 } from 'js-sha256';
 import config from '../config/environment';
 import NotificationService from './NotificationService';
+import StakingService from './StakingService';
 
 // Expo Go compatibility: these modules require custom dev build
 // Provide fallbacks for Expo Go testing
@@ -1060,6 +1061,7 @@ export class MiningService {
       });
 
       // Submit share to decentralized block (for A50 rewards)
+      const stakingBoost = StakingService.getInstance().getBoostMultiplier();
       const shareResult = await this.networkService.submitMiningShare({
         blockId: this.currentSession.blockId,
         nonce: nonce, // Already a number
@@ -1067,6 +1069,7 @@ export class MiningService {
         difficulty,
         hashesComputed,  // For hash rate anomaly detection
         timeElapsed,     // For hash rate anomaly detection
+        stakingBoost,    // Share weight multiplier from staking (1.0 if no stake)
       });
 
       if (shareResult.accepted) {
@@ -1074,6 +1077,15 @@ export class MiningService {
         const MAX_SHARES_PER_BLOCK = 2;
 
         console.log(`✅ Share ${this.sessionShareCount}/${MAX_SHARES_PER_BLOCK} accepted! Block: ${shareResult.blockHeight}`);
+
+        // Confirm the server honored the staking boost we sent
+        if (shareResult.appliedBoost !== undefined) {
+          if (Math.abs(shareResult.appliedBoost - stakingBoost) > 0.0001) {
+            console.warn(`⚠️ Staking boost mismatch — sent: ${stakingBoost.toFixed(4)}, server applied: ${shareResult.appliedBoost.toFixed(4)}`);
+          } else {
+            console.log(`🔒 Staking boost confirmed by server: ${shareResult.appliedBoost.toFixed(4)}x`);
+          }
+        }
 
         // Apply server-calculated vardiff for next share in this block
         if (shareResult.nextDifficulty && this.currentBlockInfo) {

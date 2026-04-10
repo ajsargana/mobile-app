@@ -67,6 +67,7 @@ import { TransactionDetailScreen } from './src/components/TransactionDetailScree
 import { AddressDetailScreen } from './src/components/AddressDetailScreen';
 import { ExplorerSearchScreen } from './src/components/ExplorerSearchScreen';
 import { LanguageSelectionScreen } from './src/components/LanguageSelectionScreen';
+import StakingScreen from './src/components/StakingScreen';
 
 // ── Android font-scale fix ────────────────────────────────────────────────────
 // Android respects the system font-size setting (often 1.15×+); iOS ignores it.
@@ -239,6 +240,7 @@ const AppNavigator = () => {
       <Stack.Screen name="TransactionSuccess"  component={TransactionSuccessScreen}  options={{ headerShown: false }} />
       <Stack.Screen name="Notifications"       component={NotificationsScreen}       options={{ headerShown: false }} />
       <Stack.Screen name="Help"               component={HelpScreen}                options={{ headerShown: false }} />
+      <Stack.Screen name="Staking"            component={StakingScreen}             options={{ headerShown: false }} />
       <Stack.Screen name="BlockExplorer"     component={BlockExplorerScreen}        options={{ headerShown: false }} />
       <Stack.Screen name="BlocksList"        component={BlocksListScreen}           options={{ headerShown: false }} />
       <Stack.Screen name="BlockDetail"       component={BlockDetailScreen}          options={{ headerShown: false }} />
