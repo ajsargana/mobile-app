@@ -11,7 +11,7 @@ export interface StakeRecord {
   startTime: number;     // epoch ms
   endTime: number;       // startTime + lockDays * 86_400_000
   score: number;         // (lockedAmount/100) * (lockDays/30)
-  boostPct: number;      // min(10 * sqrt(score), 30)  — rounded to 2dp
+  boostPct: number;      // min(10 * sqrt(score), 50)  — rounded to 2dp
   multiplier: number;    // 1 + boostPct / 100
 }
 
@@ -28,13 +28,13 @@ export interface BoostPreview {
  * No minimums — even 1 A50 earns a proportional boost.
  *
  * score      = (lockedAmount / 100) * (lockDays / 30)
- * boostPct   = min(10 * sqrt(score), 30)
+ * boostPct   = min(10 * sqrt(score), 50)
  * multiplier = 1 + boostPct / 100
  */
 export function computeStakingBoost(amount: number, lockDays: number): BoostPreview {
   if (amount <= 0 || lockDays <= 0) return { score: 0, boostPct: 0, multiplier: 1 };
   const score     = (amount / 100) * (lockDays / 30);
-  const boostPct  = Math.min(10 * Math.sqrt(score), 30);
+  const boostPct  = Math.min(10 * Math.sqrt(score), 50);
   const multiplier = 1 + boostPct / 100;
   return {
     score:      Math.round(score * 100) / 100,
