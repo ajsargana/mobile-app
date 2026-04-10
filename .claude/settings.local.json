@@ -48,7 +48,10 @@
       "Bash(./android/gradlew assembleRelease --console=plain)",
       "Bash(./gradlew assembleRelease --console=plain)",
       "Bash(npm ls:*)",
-      "Bash(./gradlew.bat assembleRelease)"
+      "Bash(./gradlew.bat assembleRelease)",
+      "Read(//c/Users/ajsar/**)",
+      "Bash(grep -r \"submitShare\\\\|/api/blocks\" /c/Users/ajsar/aura50/server/*.ts)",
+      "Bash(grep:*)"
     ]
   }
 }
