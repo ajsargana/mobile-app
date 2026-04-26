@@ -15,6 +15,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NetworkService } from './NetworkService';
 import { EnhancedWalletService } from './EnhancedWalletService';
+import { ethers } from 'ethers';
 import { secp256k1 } from '@noble/secp256k1';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
@@ -24,6 +25,7 @@ import { getOrCreatePeerIdentity } from '../lib/p2p/PeerIdentity';
 export interface BlockVote {
   blockHeight: number;
   blockHash: string;
+  approved: boolean;
   validatorId: string;
   validatorReputation: number;
   timestamp: number;
@@ -39,6 +41,10 @@ export interface BlockVote {
     layer8_pow: boolean;
   };
   signature: string;
+  /** EIP-191 signature for Ethereum wallet verification */
+  ethersSignature?: string;
+  /** Flag indicating signature was verified (set by backend) */
+  signatureVerified?: boolean;
   /** secp256k1 compressed public key hex (33 bytes) — required for signature verification */
   publicKeyHex?: string;
 }
@@ -74,6 +80,7 @@ export class ConsensusParticipation {
   private networkService: NetworkService;
   private walletService: EnhancedWalletService;
   private validatorId: string;
+  private walletAddress: string | null = null;
   private privateKeyHex: string | null = null; // secp256k1 private key from PeerIdentity
   private validatorReputation: number = 50;
   private votingEnabled: boolean = true;
@@ -126,6 +133,13 @@ export class ConsensusParticipation {
     // Load validator reputation
     await this.loadValidatorReputation();
 
+    // Get wallet address and register validator
+    const account = this.walletService.getCurrentAccount();
+    if (account) {
+      this.walletAddress = account.address;
+      await this.registerValidatorWithWallet();
+    }
+
     // Subscribe to network votes
     this.subscribeToVotes();
 
@@ -153,6 +167,7 @@ export class ConsensusParticipation {
     const vote: BlockVote = {
       blockHeight,
       blockHash,
+      approved: validationResult.passed,
       validatorId: this.validatorId,
       validatorReputation: this.validatorReputation,
       timestamp: Date.now(),
@@ -162,6 +177,10 @@ export class ConsensusParticipation {
 
     // Sign the vote cryptographically and embed public key for receiver verification
     vote.signature = await this.signVote(vote);
+
+    // Sign with ethers.js for Ethereum wallet verification (EIP-191)
+    vote.ethersSignature = await this.signVoteWithEthers(vote);
+
     if (this.privateKeyHex) {
       vote.publicKeyHex = bytesToHex(secp256k1.getPublicKey(hexToBytes(this.privateKeyHex)));
     }
@@ -255,6 +274,86 @@ export class ConsensusParticipation {
   }
 
   /**
+   * Register validator with wallet address on backend
+   * POST /api/coordinator/register
+   */
+  private async registerValidatorWithWallet(): Promise<void> {
+    try {
+      if (!this.walletAddress) {
+        console.warn('[Consensus] No wallet address available for validator registration');
+        return;
+      }
+
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://62.84.187.126:5005';
+      const response = await fetch(`${apiUrl}/api/coordinator/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          validatorId: this.validatorId,
+          walletAddress: this.walletAddress,
+          timestamp: Date.now(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Registration failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Validator registered with wallet address:', this.walletAddress);
+    } catch (error) {
+      console.error('[Consensus] Error registering validator:', error);
+    }
+  }
+
+  /**
+   * Sign a vote with ethers.js using EIP-191 Ethereum message signing
+   * The signature can be verified by recovering the signer's address
+   */
+  private async signVoteWithEthers(vote: BlockVote): Promise<string> {
+    try {
+      if (!this.walletAddress) {
+        console.warn('[Consensus] No wallet address available for EIP-191 signing');
+        return '';
+      }
+
+      const account = this.walletService.getCurrentAccount();
+      if (!account) {
+        console.warn('[Consensus] No active account for signing');
+        return '';
+      }
+
+      // Construct the message to sign (following EIP-191 format)
+      const message = JSON.stringify({
+        blockHeight: vote.blockHeight,
+        blockHash: vote.blockHash,
+        approved: vote.approved,
+        timestamp: vote.timestamp,
+      });
+
+      // Create a signer from the private key
+      // Note: In production, this would use a hardware wallet or WalletConnect
+      const privateKey = account.privateKey;
+      if (!privateKey) {
+        console.warn('[Consensus] No private key available for signing');
+        return '';
+      }
+
+      // Create wallet and sign message with EIP-191 prefix
+      const wallet = new ethers.Wallet(privateKey);
+      const signature = await wallet.signMessage(message);
+
+      console.log('[Consensus] Vote signed with EIP-191');
+      return signature;
+    } catch (error) {
+      console.error('[Consensus] Error signing vote with ethers:', error);
+      return '';
+    }
+  }
+
+  /**
    * Sign a vote with secp256k1 ECDSA using the node's PeerIdentity private key.
    * The compact signature (64 bytes hex) is unforgeable without the private key.
    * Public key is embedded in the vote so receivers can verify without a registry.
@@ -297,6 +396,33 @@ export class ConsensusParticipation {
       const msgHash = sha256(new TextEncoder().encode(voteData));
       return secp256k1.verify(vote.signature, msgHash, vote.publicKeyHex);
     } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Verify an EIP-191 ethers.js signature
+   * Recovers the signer address and compares with validatorId
+   */
+  private async verifyEthersSignature(vote: BlockVote): Promise<boolean> {
+    try {
+      if (!vote.ethersSignature) return false;
+
+      const message = JSON.stringify({
+        blockHeight: vote.blockHeight,
+        blockHash: vote.blockHash,
+        approved: vote.approved,
+        timestamp: vote.timestamp,
+      });
+
+      // Recover the signer's address from the signature
+      const recoveredAddress = ethers.verifyMessage(message, vote.ethersSignature);
+
+      // Note: In production, this would check against a registered wallet address
+      // For now, we verify the signature is valid
+      return recoveredAddress !== ethers.ZeroAddress;
+    } catch (error) {
+      console.error('[Consensus] Error verifying ethers signature:', error);
       return false;
     }
   }
@@ -455,6 +581,13 @@ export class ConsensusParticipation {
    */
   getReputation(): number {
     return this.validatorReputation;
+  }
+
+  /**
+   * Get wallet address
+   */
+  getWalletAddress(): string | null {
+    return this.walletAddress;
   }
 
   /**

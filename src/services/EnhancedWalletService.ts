@@ -94,6 +94,11 @@ export class EnhancedWalletService {
       this.hdWallet = hdWallet;
       this.currentAccount = firstAccount;
 
+      // Clear any cached staking data from a previous account so the new
+      // wallet starts clean and doesn't inherit another account's boost.
+      const { default: StakingService } = await import('./StakingService');
+      StakingService.getInstance().resetForAccountSwitch();
+
       return hdWallet;
     } catch (error) {
       throw new Error(`Failed to create HD wallet: ${error}`);
@@ -201,6 +206,13 @@ export class EnhancedWalletService {
     this.currentAccount = this.hdWallet.accounts[accountIndex];
 
     await this.saveHDWallet(this.hdWallet);
+
+    // Reset staking cache so the new account's stake is loaded fresh.
+    // Without this, the previous account's staking boost leaks into shares
+    // submitted under the new account.
+    const { default: StakingService } = await import('./StakingService');
+    StakingService.getInstance().resetForAccountSwitch();
+
     return this.currentAccount;
   }
 
@@ -300,7 +312,9 @@ export class EnhancedWalletService {
       // Store offline transaction
       await this.addOfflineTransaction(transaction);
     } else {
-      this.currentAccount.transactions.push(transaction);
+      if (!this.currentAccount.transactions.some(t => t.id === transaction.id)) {
+        this.currentAccount.transactions.push(transaction);
+      }
       await this.saveHDWallet(this.hdWallet!);
     }
 
@@ -394,13 +408,22 @@ export class EnhancedWalletService {
         return { success: false, error: 'Not authenticated' };
       }
 
-      const response = await fetch(`${config.baseUrl}/api/user/profile`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
+      let response;
+      try {
+        response = await fetch(`${config.baseUrl}/api/user/profile`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -455,13 +478,22 @@ export class EnhancedWalletService {
       }
 
       const url = `${getApiUrl(API_ENDPOINTS.transactionHistory)}?limit=${limit}&offset=0`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
+      let response;
+      try {
+        response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         if (response.status === 401) {

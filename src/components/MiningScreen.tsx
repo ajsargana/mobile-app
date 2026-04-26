@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { MiningService } from '../services/MiningService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
 import { NetworkService } from '../services/NetworkService';
+import { applyFontScaling } from '../utils/fontScaling';
 import {
   enableBackgroundMining,
   disableBackgroundMining,
@@ -151,6 +152,9 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   const mountedRef      = useRef(true);
   const pollingInFlight = useRef(false);
   const btnScale        = useRef(new Animated.Value(1)).current;
+  const iconRotate      = useRef(new Animated.Value(0)).current;
+  const stakeShakeAnim  = useRef(new Animated.Value(0)).current;
+  const stakeZoomAnim   = useRef(new Animated.Value(1)).current;
   const miningNotifId   = useRef<string | null>(null);
   // Ref mirrors isMining so AppState callbacks always read the current value
   const isMiningRef     = useRef(false);
@@ -196,6 +200,30 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       Animated.spring(btnScale,  { toValue: 1,    useNativeDriver: true }),
     ]).start();
   };
+
+  // ── Icon rotation animation while mining ──────────────────────────────────
+  useEffect(() => {
+    if (isMining) {
+      const rotationLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(iconRotate, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(iconRotate, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      rotationLoop.start();
+      return () => rotationLoop.stop();
+    } else {
+      iconRotate.setValue(0);
+    }
+  }, [isMining, iconRotate]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -446,6 +474,26 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     return () => loop.stop();
   }, [leaderHintReady]);
 
+  // Stake button animation (continuous shake + zoom)
+  useEffect(() => {
+    const stakeLoop = Animated.loop(
+      Animated.sequence([
+        // Shake left-right while zooming in-out
+        Animated.parallel([
+          Animated.timing(stakeShakeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(stakeZoomAnim, { toValue: 1.15, duration: 300, useNativeDriver: true }),
+            Animated.timing(stakeZoomAnim, { toValue: 0.95, duration: 300, useNativeDriver: true }),
+          ]),
+        ]),
+        Animated.timing(stakeShakeAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        Animated.timing(stakeZoomAnim, { toValue: 1, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    stakeLoop.start();
+    return () => stakeLoop.stop();
+  }, [stakeShakeAnim, stakeZoomAnim]);
+
   const advanceOnboarding = useCallback((fromStep: number) => {
     const next = fromStep + 1;
     setOnboardingStep(next);
@@ -558,11 +606,15 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     if (isMining) {
       try {
         await miningService.stopMining();
+      } catch (e) {
+        console.warn('[MiningScreen] stopMining error:', e);
+        // Continue with cleanup even if API call fails
+      }
+      // Always update state and cleanup regardless of API success
+      if (mountedRef.current) {
         setIsMining(false);
         await stopMiningKeepAwake();
         fetchParticipation();
-      } catch (_) {
-        Alert.alert('Error', 'Failed to leave block properly.');
       }
       return;
     }
@@ -586,14 +638,13 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   // ── Derived values (memoized — don't recalculate on unrelated renders) ───
   const {
     lowBattery, progressFraction, limitReached,
-    gradientColors, btnColor, iconName, labelTop,
+    gradientColors, btnColor, labelTop,
   } = useMemo(() => ({
     lowBattery:      deviceMetrics.batteryLevel < 20 && !deviceMetrics.isCharging,
     progressFraction: dailyLimit > 0 ? Math.min(1, dailyCount / dailyLimit) : 0,
     limitReached:    dailyCount >= dailyLimit,
     gradientColors:  isMining ? colors.miningActive : colors.miningIdle,
     btnColor:        isMining ? colors.miningBtnActive : colors.miningBtn,
-    iconName:        (isMining ? 'stop-circle-outline' : 'flash-outline') as 'stop-circle-outline' | 'flash-outline',
     labelTop:        isMining ? 'CONTRIBUTING' : 'READY TO FORGE',
   }), [deviceMetrics.batteryLevel, deviceMetrics.isCharging, dailyCount, dailyLimit, isMining, colors]);
 
@@ -601,12 +652,12 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   useEffect(() => {
     if (limitReached && isMining) {
       console.log('[MiningScreen] Daily limit reached — auto-stopping mining');
-      miningService.stopMining().then(() => {
-        if (mountedRef.current) {
-          setIsMining(false);
-          stopMiningKeepAwake();
-        }
-      }).catch(e => console.warn('[MiningScreen] Failed to auto-stop mining:', e));
+      miningService.stopMining().catch(e => console.warn('[MiningScreen] Failed to auto-stop mining:', e));
+      // Always update state regardless of API result
+      if (mountedRef.current) {
+        setIsMining(false);
+        stopMiningKeepAwake();
+      }
     }
   }, [limitReached, isMining]);
 
@@ -656,7 +707,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         </Text>
 
         {/* Button + ripple rings */}
-        <View style={styles.btnWrap}>
+        <View style={[styles.btnWrap, { position: 'relative' }]}>
           {isMining && (
             isLowEnd ? (
               <View style={styles.staticGlow} />
@@ -668,14 +719,52 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
               </>
             )
           )}
+
+          {/* Persistent Stake Icon Button (left side) */}
+          <TouchableOpacity
+            style={styles.stakeIconBtn}
+            onPress={() => navigation.navigate('Staking')}
+            activeOpacity={0.7}
+          >
+            <Animated.View style={{
+              alignItems: 'center',
+              transform: [
+                { translateX: stakeShakeAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -4, 0] }) },
+                { scale: stakeZoomAnim },
+              ],
+            }}>
+              <Ionicons name="flash" size={26} color="#FFD700" style={{ marginBottom: 2 }} />
+              <Text style={styles.stakeLabel}>BOOST</Text>
+            </Animated.View>
+          </TouchableOpacity>
+
           <View ref={miningBtnRef} onLayout={() => {
             miningBtnRef.current?.measureInWindow((_x, y, _w, h) => {
               if (mountedRef.current) { setMiningBtnX(_x); setMiningBtnTop(y + 2); setMiningBtnHeight(h); }
             });
           }}>
           <TouchableOpacity onPress={handlePress} activeOpacity={1}>
-            <Animated.View style={[styles.btnCircle, { backgroundColor: btnColor, transform: [{ scale: btnScale }] }]}>
-              <Ionicons name={iconName as any} size={42} color="#FFFFFF" />
+            <Animated.View style={[styles.btnCircle, {
+              backgroundColor: btnColor,
+              transform: [
+                { scale: btnScale },
+              ]
+            }]}>
+              {isMining ? (
+                <Ionicons name="stop-circle-outline" size={42} color="#FFFFFF" />
+              ) : (
+                <Animated.Text style={{
+                  fontSize: 42,
+                  transform: [
+                    {
+                      rotate: iconRotate.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['-30deg', '30deg'],
+                      })
+                    }
+                  ]
+                }}>⛏️</Animated.Text>
+              )}
             </Animated.View>
           </TouchableOpacity>
           </View>
@@ -735,26 +824,6 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           onCheckin={(count) => { setStreakCount(count); setStreakRefreshKey(k => k + 1); }}
           onNewBadges={(ids) => { setAchieveRefreshKey(k => k + 1); showAchievementToast(ids[0]); }}
         />
-
-        {/* ── Staking boost pill ── */}
-        {stakingBoost > 1.0 && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Staking')}
-            style={{
-              flexDirection: 'row', alignItems: 'center',
-              backgroundColor: 'rgba(93,173,226,0.12)',
-              borderColor: 'rgba(93,173,226,0.30)', borderWidth: 1,
-              borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
-              marginBottom: 10,
-            }}
-          >
-            <Ionicons name="flash" size={16} color={colors.accent} style={{ marginRight: 6 }} />
-            <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700', flex: 1 }}>
-              +{((stakingBoost - 1) * 100).toFixed(1)}% Staking Boost Active
-            </Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.accent} />
-          </TouchableOpacity>
-        )}
 
         {/* ── History & Rewards (wrapped for onboarding step 7) ── */}
         <View ref={historyAreaRef}>
@@ -991,7 +1060,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = applyFontScaling(StyleSheet.create({
   fill: {
     flex: 1,
   },
@@ -1063,6 +1132,23 @@ const styles = StyleSheet.create({
     height: BTN_SIZE * 1.6,
     borderRadius: (BTN_SIZE * 1.6) / 2,
     backgroundColor: 'rgba(52,152,219,0.12)',
+  },
+
+  stakeIconBtn: {
+    position: 'absolute',
+    left: -65,
+    bottom: -70,
+    width: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  stakeLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFD700',
+    width: 50,
+    textAlign: 'center',
   },
 
   labelBottom: {
@@ -1159,10 +1245,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#85B8D5',
   },
-});
+}));
 
 // Hint badge styles for onboarding Modals
-const mStyles = StyleSheet.create({
+const mStyles = applyFontScaling(StyleSheet.create({
   hintBadge: {
     backgroundColor: 'rgba(15,15,15,0.78)',
     borderRadius: 20,
@@ -1175,4 +1261,4 @@ const mStyles = StyleSheet.create({
     borderColor: 'rgba(93,173,226,0.35)',
   },
   hintBadgeText: { color: 'rgba(255,255,255,0.82)', fontWeight: '500', fontSize: 13 },
-});
+}));

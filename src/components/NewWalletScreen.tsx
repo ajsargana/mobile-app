@@ -34,9 +34,10 @@ import AchievementsSheet from './AchievementsSheet';
 import NotificationService from '../services/NotificationService';
 import { useFocusEffect } from '@react-navigation/native';
 import ThemedCard from './ThemedCard';
+import { StakingPill } from './StakingPill';
+import { applyFontScaling } from '../utils/fontScaling';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const CONTACTS_KEY   = '@aura50_contacts';
 const COINS_KEY      = '@aura50_market_coins';
 const MARKET_POLL_MS = 60_000;
 const DEFAULT_COINS  = ['bitcoin', 'ethereum'];
@@ -47,8 +48,6 @@ const marketUrl = (ids: string[]) =>
 const COINGECKO_SEARCH = 'https://api.coingecko.com/api/v3/search?query=';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Contact { id: string; name: string; address: string }
-
 interface MarketCoin {
   id: string; name: string; symbol: string;
   current_price: number;
@@ -122,12 +121,6 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
 
   // Profile
   const [profileUri, setProfileUri]     = useState<string | null>(null);
-
-  // Contacts
-  const [contacts, setContacts]             = useState<Contact[]>([]);
-  const [addContactOpen, setAddContactOpen] = useState(false);
-  const [newName, setNewName]               = useState('');
-  const [newAddr, setNewAddr]               = useState('');
 
   // Payments
   const [recentPayments, setRecentPayments] = useState<Transaction[]>([]);
@@ -396,7 +389,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   }, []);
 
   const loadAllData = useCallback(async () => {
-    await Promise.all([loadWallet(), loadContacts(), loadProfile(), loadAchievements()]);
+    await Promise.all([loadWallet(), loadProfile(), loadAchievements()]);
   }, [loadAchievements]);
 
   // ── Profile ─────────────────────────────────────────────────────────────────
@@ -470,26 +463,6 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       setNotificationCount(unread);
     } catch (err) { console.warn('Wallet load error:', err); }
   }, []);
-
-  // ── Contacts ────────────────────────────────────────────────────────────────
-  const loadContacts = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem(CONTACTS_KEY);
-      if (raw && mountedRef.current) setContacts(JSON.parse(raw));
-    } catch {}
-  }, []);
-
-  const saveContact = useCallback(async () => {
-    if (!newName.trim() || !newAddr.trim()) {
-      Alert.alert('Missing fields', 'Enter both name and wallet address.');
-      return;
-    }
-    const c: Contact = { id: Date.now().toString(), name: newName.trim(), address: newAddr.trim() };
-    const next = [...contacts, c];
-    setContacts(next);
-    await AsyncStorage.setItem(CONTACTS_KEY, JSON.stringify(next));
-    setAddContactOpen(false); setNewName(''); setNewAddr('');
-  }, [contacts, newName, newAddr]);
 
   // ── Market ──────────────────────────────────────────────────────────────────
   const loadCoins = async () => {
@@ -749,12 +722,16 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         </LinearGradient>
       </View>
 
-      {/* ── Capsule Action Buttons (3 only) ── */}
+      {/* ── Capsule Action Buttons (3 only: Stake, Send, Receive) ── */}
       <View style={styles.actionRow}>
+        {/* Stake Button */}
+        <View style={{ flex: 1 }}>
+          <StakingPill onPress={() => navigation.navigate('Staking')} />
+        </View>
+
         {[
           { label: t('home.send'),    icon: 'arrow-up-circle-outline',   color: colors.sendColor,    bg: colors.sendBg,    route: 'SendTransaction' },
           { label: t('home.receive'), icon: 'arrow-down-circle-outline',  color: colors.receiveColor, bg: colors.receiveBg, route: 'ReceiveTransaction' },
-          { label: t('home.seed'),    icon: 'key-outline',               color: colors.seedColor,    bg: colors.seedBg,    route: 'SeedPhrase' },
         ].map(({ label, icon, color, bg, route }) => {
           const btnRef = label === 'Send' ? sendBtnRef : label === 'Receive' ? receiveBtnRef : null;
           return (
@@ -778,33 +755,6 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           );
         })}
       </View>
-
-      {/* ── Top Contacts ── */}
-      <ThemedCard style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('home.topContacts')}</Text>
-          <TouchableOpacity onPress={() => Alert.alert('Contacts', `${contacts.length} saved contact(s).`)}>
-            <Text style={[styles.viewAllText, { color: colors.accent }]}>{t('home.viewAll')} {'>'}</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {contacts.map(c => (
-            <TouchableOpacity key={c.id} style={styles.contactItem}
-              onPress={() => navigation.navigate('SendTransaction', { toAddress: c.address })}>
-              <View style={[styles.contactAvatar, { backgroundColor: colors.contactAvatarBg }]}>
-                <Text style={[styles.contactInitial, { color: colors.contactInitial }]}>{c.name.charAt(0).toUpperCase()}</Text>
-              </View>
-              <Text style={[styles.contactName, { color: colors.textMuted }]} numberOfLines={1}>{c.name}</Text>
-            </TouchableOpacity>
-          ))}
-          {/* Add contact card */}
-          <TouchableOpacity style={[styles.addContactCard, { backgroundColor: colors.addContactCardBg, borderColor: colors.addContactBorder }]}
-            onPress={() => setAddContactOpen(true)}>
-            <Ionicons name="person-add-outline" size={20} color={colors.accent} />
-            <Text style={[styles.addContactText, { color: colors.accent }]}>Add</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </ThemedCard>
 
       {/* ── Recent Payments ── */}
       <ThemedCard style={styles.sectionCard}>
@@ -926,38 +876,6 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       {/* ═══════════════════════════════════════════════
           MODALS
       ═══════════════════════════════════════════════ */}
-
-      {/* ── Add Contact ── */}
-      <Modal visible={addContactOpen} transparent animationType="slide" onRequestClose={() => setAddContactOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <TouchableOpacity style={[styles.overlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setAddContactOpen(false)}>
-            <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: colors.card }]}>
-              <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Add Contact</Text>
-
-              <Text style={[styles.inputLabel, { color: colors.textLabel }]}>Name</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.textPrimary }]}
-                placeholder="e.g., John Doe" placeholderTextColor={colors.placeholder}
-                value={newName} onChangeText={setNewName} autoFocus />
-
-              <Text style={[styles.inputLabel, { color: colors.textLabel }]}>Wallet Address</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.textPrimary }]}
-                placeholder="0x123...abc" placeholderTextColor={colors.placeholder}
-                value={newAddr} onChangeText={setNewAddr} autoCapitalize="none" autoCorrect={false} />
-
-              <View style={styles.sheetBtns}>
-                <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.pillBg }]} onPress={() => setAddContactOpen(false)}>
-                  <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.accent }]} onPress={saveContact}>
-                  <Text style={styles.confirmBtnText}>Add Contact</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* ── Add Coin ── */}
       <Modal visible={addCoinOpen} transparent animationType="slide" onRequestClose={() => setAddCoinOpen(false)}>
@@ -1355,7 +1273,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
 };
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const styles = applyFontScaling(StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   contentContainer: { paddingBottom: 24 },
 
@@ -1409,14 +1327,6 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: '#111827' },
   viewAllText: { fontSize: 13, color: '#2563EB', fontWeight: '500' },
-
-  // Contacts
-  contactItem: { alignItems: 'center', marginRight: 14, width: 56 },
-  contactAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  contactInitial: { fontSize: 18, fontWeight: '700', color: '#2563EB' },
-  contactName: { fontSize: 11, color: '#6B7280', textAlign: 'center', fontWeight: '500' },
-  addContactCard: { alignItems: 'center', justifyContent: 'center', width: 56, height: 70, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1.5, borderColor: '#BFDBFE', borderStyle: 'dashed', gap: 3 },
-  addContactText: { fontSize: 11, color: '#2563EB', fontWeight: '600' },
 
   // Transactions
   txRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
@@ -1512,4 +1422,4 @@ const styles = StyleSheet.create({
   changePct: { fontSize: 14, fontWeight: '700' },
   chartArea: { borderRadius: 12, backgroundColor: '#F9FAFB', padding: 12, marginBottom: 10, overflow: 'hidden' },
   chartFootnote: { fontSize: 11, color: '#9CA3AF', textAlign: 'center' },
-});
+}));

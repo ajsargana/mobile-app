@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemedCard from './ThemedCard';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
@@ -19,10 +21,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrustLevel } from '../types';
 import { QRScannerModal } from './QRScannerModal';
 import NotificationService from '../services/NotificationService';
+import { useTranslation } from 'react-i18next';
+import { applyFontScaling } from '../utils/fontScaling';
 
-export const SendTransactionScreen = ({ navigation }: any) => {
+const CONTACTS_KEY = '@aura50_contacts';
+
+interface Contact { id: string; name: string; address: string }
+
+export const SendTransactionScreen = ({ navigation, route }: any) => {
   const { colors, isDark } = useTheme();
-  const [recipientAddress, setRecipientAddress] = useState('');
+  const { t } = useTranslation();
+  const mountedRef = useRef(true);
+
+  const [recipientAddress, setRecipientAddress] = useState(route?.params?.toAddress || '');
   const [amount, setAmount] = useState('');
   const [balance, setBalance] = useState('0');
   const [fee, setFee] = useState('0');
@@ -32,8 +43,17 @@ export const SendTransactionScreen = ({ navigation }: any) => {
   const [error, setError] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
 
+  // Contacts
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [addContactOpen, setAddContactOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newAddr, setNewAddr] = useState('');
+
   useEffect(() => {
+    mountedRef.current = true;
     loadWalletData();
+    loadContacts();
+    return () => { mountedRef.current = false; };
   }, []);
 
   // Update fee when amount changes
@@ -58,21 +78,43 @@ export const SendTransactionScreen = ({ navigation }: any) => {
       if (wallet) {
         const { StakingService } = require('../services/StakingService');
         const available = StakingService.getInstance().getAvailableBalanceSync();
-        setBalance(available.toFixed(8));
+        if (mountedRef.current) setBalance(available.toFixed(8));
       }
 
       // Get user trust level from stored profile
       const userDataStr = await AsyncStorage.getItem('@user_data');
       if (userDataStr) {
         const userData = JSON.parse(userDataStr);
-        setTrustLevel(userData.trustLevel || TrustLevel.NEW);
+        if (mountedRef.current) setTrustLevel(userData.trustLevel || TrustLevel.NEW);
       }
     } catch (err) {
       console.error('Failed to load wallet data:', err);
-      setError('Failed to load wallet data');
+      if (mountedRef.current) setError('Failed to load wallet data');
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
+  };
+
+  // ── Contacts ────────────────────────────────────────────────────────────────
+  const loadContacts = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(CONTACTS_KEY);
+      if (raw && mountedRef.current) setContacts(JSON.parse(raw));
+    } catch {}
+  };
+
+  const saveContact = async () => {
+    if (!newName.trim() || !newAddr.trim()) {
+      Alert.alert('Missing fields', 'Enter both name and wallet address.');
+      return;
+    }
+    const c: Contact = { id: Date.now().toString(), name: newName.trim(), address: newAddr.trim() };
+    const next = [...contacts, c];
+    setContacts(next);
+    await AsyncStorage.setItem(CONTACTS_KEY, JSON.stringify(next));
+    setAddContactOpen(false);
+    setNewName('');
+    setNewAddr('');
   };
 
   const handleQRScan = (data: string) => {
@@ -353,9 +395,35 @@ export const SendTransactionScreen = ({ navigation }: any) => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Send A50</Text>
-          <ThemedCard style={styles.balanceCard}>
-            <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>Available Balance</Text>
-            <Text style={styles.balanceAmount}>{parseFloat(balance).toFixed(8)} A50</Text>
+          <Text style={[styles.smallBalanceText, { color: colors.textMuted }]}>
+            Available: {parseFloat(balance).toFixed(8)} A50
+          </Text>
+
+          {/* ── Top Contacts ── */}
+          <ThemedCard style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('home.topContacts')}</Text>
+              <TouchableOpacity onPress={() => Alert.alert('Contacts', `${contacts.length} saved contact(s).`)}>
+                <Text style={[styles.viewAllText, { color: colors.accent }]}>{t('home.viewAll')} {'>'}</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {contacts.map(c => (
+                <TouchableOpacity key={c.id} style={styles.contactItem}
+                  onPress={() => setRecipientAddress(c.address)}>
+                  <View style={[styles.contactAvatar, { backgroundColor: colors.contactAvatarBg }]}>
+                    <Text style={[styles.contactInitial, { color: colors.contactInitial }]}>{c.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <Text style={[styles.contactName, { color: colors.textMuted }]} numberOfLines={1}>{c.name}</Text>
+                </TouchableOpacity>
+              ))}
+              {/* Add contact card */}
+              <TouchableOpacity style={[styles.addContactCard, { backgroundColor: colors.addContactCardBg, borderColor: colors.addContactBorder }]}
+                onPress={() => setAddContactOpen(true)}>
+                <Ionicons name="person-add-outline" size={20} color={colors.accent} />
+                <Text style={[styles.addContactText, { color: colors.accent }]}>Add</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </ThemedCard>
         </View>
 
@@ -466,6 +534,38 @@ export const SendTransactionScreen = ({ navigation }: any) => {
         </View>
       </ScrollView>
 
+      {/* Add Contact Modal */}
+      <Modal visible={addContactOpen} transparent animationType="slide" onRequestClose={() => setAddContactOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <TouchableOpacity style={[styles.overlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setAddContactOpen(false)}>
+            <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: colors.card }]}>
+              <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Add Contact</Text>
+
+              <Text style={[styles.inputLabel, { color: colors.textLabel }]}>Name</Text>
+              <TextInput
+                style={[styles.sheetInput, { color: colors.textPrimary, backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                placeholder="Contact name" placeholderTextColor={colors.placeholder}
+                value={newName} onChangeText={setNewName} />
+
+              <Text style={[styles.inputLabel, { color: colors.textLabel }]}>Wallet Address</Text>
+              <TextInput
+                style={[styles.sheetInput, { color: colors.textPrimary, backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                placeholder="0x..." placeholderTextColor={colors.placeholder}
+                value={newAddr} onChangeText={setNewAddr} autoCapitalize="none" autoCorrect={false} />
+
+              <View style={styles.sheetBtns}>
+                <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.pillBg }]} onPress={() => setAddContactOpen(false)}>
+                  <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.accent }]} onPress={saveContact}>
+                  <Text style={styles.confirmBtnText}>Add Contact</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* QR Scanner Modal */}
       <QRScannerModal
         visible={showScanner}
@@ -478,7 +578,7 @@ export const SendTransactionScreen = ({ navigation }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = applyFontScaling(StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
@@ -507,25 +607,44 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#111827',
+    marginBottom: 8,
+  },
+  smallBalanceText: {
+    fontSize: 13,
+    color: '#6b7280',
     marginBottom: 16,
   },
-  balanceCard: {
+  sectionCard: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    marginBottom: 16,
   },
-  balanceLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 4,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  balanceAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#10b981',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
   },
+  viewAllText: {
+    fontSize: 13,
+    color: '#2563EB',
+    fontWeight: '500',
+  },
+  // Contacts
+  contactItem: { alignItems: 'center', marginRight: 14, width: 56 },
+  contactAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  contactInitial: { fontSize: 18, fontWeight: '700', color: '#2563EB' },
+  contactName: { fontSize: 11, color: '#6B7280', textAlign: 'center', fontWeight: '500' },
+  addContactCard: { alignItems: 'center', justifyContent: 'center', width: 56, height: 70, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1.5, borderColor: '#BFDBFE', borderStyle: 'dashed', gap: 3 },
+  addContactText: { fontSize: 11, color: '#2563EB', fontWeight: '600' },
   inputSection: {
     marginBottom: 20,
   },
@@ -690,4 +809,62 @@ const styles = StyleSheet.create({
     color: '#1e40af',
     lineHeight: 18,
   },
-});
+  // Modal styles
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#111827',
+  },
+  sheetInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+    fontSize: 14,
+    color: '#111827',
+  },
+  sheetBtns: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#3b82f6',
+  },
+  confirmBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+}));

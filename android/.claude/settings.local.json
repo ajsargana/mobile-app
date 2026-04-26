@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/users/ajsar/downloads/mobile-apps/**)",
+      "Bash(npm start:*)",
+      "Bash(expo start:*)",
+      "Bash(npx expo:*)"
+    ]
+  }
+}

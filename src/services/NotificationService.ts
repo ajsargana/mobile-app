@@ -37,7 +37,8 @@ try {
   // Without this, all foreground notifications are silently dropped by the OS.
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
     }),

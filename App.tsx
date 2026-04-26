@@ -143,6 +143,7 @@ const FloatingReferCapsule = () => {
   const capsuleX = useRef(new Animated.Value(SCREEN_W * 0.52)).current;
   const capsuleY = useRef(new Animated.Value(SCREEN_H * 0.30)).current;
   const isDragging = useRef(false);
+  const dragDistance = useRef(0);
 
   const pan = useRef(
     PanResponder.create({
@@ -150,19 +151,22 @@ const FloatingReferCapsule = () => {
       onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 4 || Math.abs(gs.dy) > 4,
       onPanResponderGrant: () => {
         isDragging.current = false;
+        dragDistance.current = 0;
         capsuleX.setOffset((capsuleX as any)._value);
         capsuleY.setOffset((capsuleY as any)._value);
         capsuleX.setValue(0);
         capsuleY.setValue(0);
       },
       onPanResponderMove: (_, gs) => {
-        isDragging.current = true;
+        dragDistance.current = Math.sqrt(gs.dx * gs.dx + gs.dy * gs.dy);
+        isDragging.current = dragDistance.current > 10; // Only consider it a drag if moved >10px
         (capsuleX as any).setValue(gs.dx);
         (capsuleY as any).setValue(gs.dy);
       },
       onPanResponderRelease: () => {
         capsuleX.flattenOffset();
         capsuleY.flattenOffset();
+        isDragging.current = false;
       },
     })
   ).current;

@@ -51,7 +51,9 @@
       "Bash(./gradlew.bat assembleRelease)",
       "Read(//c/Users/ajsar/**)",
       "Bash(grep -r \"submitShare\\\\|/api/blocks\" /c/Users/ajsar/aura50/server/*.ts)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(python3 scripts/search.py \"button shine gloss premium animation\" --domain ux -n 5)",
+      "Bash(npx expo:*)"
     ]
   }
 }

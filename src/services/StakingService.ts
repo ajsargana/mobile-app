@@ -1,9 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EnhancedWalletService } from './EnhancedWalletService';
 
-const STORAGE_KEY = '@aura50_staking_data';
+const STORAGE_KEY_PREFIX = '@aura50_staking_data';
 
-export type LockDays = 30 | 90 | 180 | 365;
+/** Returns the AsyncStorage key scoped to a specific wallet address. */
+function storageKeyForAccount(walletAddress: string): string {
+  return `${STORAGE_KEY_PREFIX}_${walletAddress}`;
+}
+
+export type LockDays = number; // Allows any lock duration from 0 to 1095 days
 
 export interface StakeRecord {
   lockedAmount: number;  // A50 coins locked
@@ -49,6 +54,7 @@ export class StakingService {
   private static instance: StakingService;
   private activeStake: StakeRecord | null = null;
   private loaded = false;
+  private loadedForWallet: string | null = null; // which wallet's stake is in memory
 
   private constructor() {}
 
@@ -62,9 +68,22 @@ export class StakingService {
   // ── Load / persist ──────────────────────────────────────────────────────────
 
   async load(): Promise<void> {
-    if (this.loaded) return;
+    const wallet = EnhancedWalletService.getInstance().getCurrentAccount()?.address ?? null;
+
+    // If the active account changed since last load, discard cached state and reload.
+    if (this.loaded && this.loadedForWallet === wallet) return;
+
+    this.loaded = false;
+    this.activeStake = null;
+    this.loadedForWallet = wallet;
+
+    if (!wallet) {
+      this.loaded = true;
+      return;
+    }
+
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const raw = await AsyncStorage.getItem(storageKeyForAccount(wallet));
       this.activeStake = raw ? JSON.parse(raw) : null;
     } catch {
       this.activeStake = null;
@@ -73,11 +92,24 @@ export class StakingService {
   }
 
   private async persist(): Promise<void> {
+    const wallet = EnhancedWalletService.getInstance().getCurrentAccount()?.address;
+    if (!wallet) return;
+    const key = storageKeyForAccount(wallet);
     if (this.activeStake) {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.activeStake));
+      await AsyncStorage.setItem(key, JSON.stringify(this.activeStake));
     } else {
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(key);
     }
+  }
+
+  /**
+   * Call this after the user logs out or switches accounts so stale stake
+   * data from the previous account is never sent with the new account's shares.
+   */
+  resetForAccountSwitch(): void {
+    this.activeStake = null;
+    this.loaded = false;
+    this.loadedForWallet = null;
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────

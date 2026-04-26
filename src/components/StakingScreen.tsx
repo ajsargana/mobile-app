@@ -10,6 +10,7 @@ import {
   Animated,
   Modal,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,17 +21,14 @@ import StakingService, {
   computeStakingBoost,
 } from '../services/StakingService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
+import { applyFontScaling } from '../utils/fontScaling';
 
 interface Props {
   navigation: any;
 }
 
-const LOCK_OPTIONS: { label: string; sublabel: string; days: LockDays }[] = [
-  { label: '1 Month',  sublabel: '30 days',  days: 30  },
-  { label: '3 Months', sublabel: '90 days',  days: 90  },
-  { label: '6 Months', sublabel: '180 days', days: 180 },
-  { label: '1 Year',   sublabel: '365 days', days: 365 },
-];
+// Max duration: 3 years = 1095 days
+const MAX_LOCK_DAYS = 1095;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +46,29 @@ function formatDateShort(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, {
     year: 'numeric', month: 'short', day: 'numeric',
   });
+}
+
+function formatDuration(days: number): string {
+  if (days === 0) return '0 days';
+
+  const years = Math.floor(days / 365);
+  let remaining = days % 365;
+
+  const months = Math.floor(remaining / 30);
+  remaining = remaining % 30;
+
+  const weeks = Math.floor(remaining / 7);
+  remaining = remaining % 7;
+
+  const daysPart = remaining;
+
+  let parts = [];
+  if (years > 0) parts.push(`${years}y`);
+  if (months > 0) parts.push(`${months}mo`);
+  if (weeks > 0) parts.push(`${weeks}w`);
+  if (daysPart > 0) parts.push(`${daysPart}d`);
+
+  return parts.length > 0 ? parts.join(' ') : '0 days';
 }
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -109,21 +130,28 @@ export const StakingScreen: React.FC<Props> = ({ navigation }) => {
     if (!canStake) return;
 
     const unlockDate = formatDate(Date.now() + lockDays * 86_400_000);
+    const durationLabel = formatDuration(lockDays);
 
     Alert.alert(
-      'Confirm Hard Lock',
+      'Think Before You Stake',
       [
-        `You are about to lock ${fmt(amount)} A50 for ${lockDays} days.`,
+        `You are about to lock ${fmt(amount)} A50 for ${durationLabel} (${lockDays} days).`,
         '',
         `• Unlock date: ${unlockDate}`,
         `• Mining boost: +${preview.boostPct.toFixed(1)}% (×${preview.multiplier.toFixed(4)})`,
         '',
-        'These coins will be completely non-moveable until the lock expires. No early withdrawal exists.',
+        '⚠️  IMPORTANT:',
+        'You can only stake once until the end of your lock period.',
+        'If you want a higher boost, decide now — as coin is locked, so is the time.',
+        'Once locked, this opportunity is gone.',
+        '',
+        'These coins will be completely non-moveable until the lock expires.',
+        'No early withdrawal. No exceptions.',
       ].join('\n'),
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Lock & Stake',
+          text: 'Confirm & Lock',
           style: 'destructive',
           onPress: async () => {
             setLoading(true);
@@ -247,8 +275,36 @@ const StakeForm = ({
   const unlockDate = formatDateShort(Date.now() + lockDays * 86_400_000);
   const cardBg = isDark ? colors.card : '#FFFFFF';
 
+  // Handle amount slider changes
+  const handleAmountSliderChange = (val: number) => {
+    setAmountText(val.toFixed(2));
+  };
+
+  // Handle amount text input changes
+  const handleAmountTextChange = (text: string) => {
+    setAmountText(text);
+  };
+
+  // Handle duration slider changes
+  const handleDurationSliderChange = (val: number) => {
+    setLockDays(Math.round(val));
+  };
+
   return (
     <>
+      {/* Welcome announcement */}
+      <View style={[styles.welcomeBanner, { backgroundColor: 'rgba(39,174,96,0.12)', borderColor: 'rgba(39,174,96,0.35)' }]}>
+        <Ionicons name="flash" size={18} color={colors.success} style={{ marginRight: 10, marginTop: 2 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.welcomeBannerTitle, { color: colors.success }]}>
+            Boost Your Mining Rewards
+          </Text>
+          <Text style={[styles.welcomeBannerText, { color: colors.textSecondary }]}>
+            Lock your coins to multiply your mining share. The longer and more you stake, the higher your boost. Every share you submit is worth more.
+          </Text>
+        </View>
+      </View>
+
       {/* Balance row */}
       <View style={[styles.card, { backgroundColor: cardBg, borderColor: colors.cardBorder }]}>
         <View style={styles.balRow}>
@@ -271,26 +327,38 @@ const StakeForm = ({
         )}
       </View>
 
-      {/* Amount input */}
+      {/* Amount Slider */}
       <View style={[styles.card, { backgroundColor: cardBg, borderColor: colors.cardBorder }]}>
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Amount to Stake</Text>
-        <View style={[
-          styles.inputRow,
-          {
-            backgroundColor: colors.inputBg,
-            borderColor: amountError ? colors.danger : colors.inputBorder,
-          },
-        ]}>
-          <TextInput
-            style={[styles.input, { color: colors.textPrimary }]}
-            placeholder="Any amount (e.g. 10)"
-            placeholderTextColor={colors.placeholder}
-            keyboardType="decimal-pad"
-            value={amountText}
-            onChangeText={setAmountText}
-          />
-          <Text style={[styles.inputUnit, { color: colors.textSecondary }]}>A50</Text>
+
+        <View style={styles.sliderContainer}>
+          <View style={{ flex: 1 }}>
+            <Slider
+              style={styles.slider}
+              minimumValue={0}
+              maximumValue={available}
+              step={0.01}
+              value={amount}
+              onValueChange={handleAmountSliderChange}
+              minimumTrackTintColor={colors.accent}
+              maximumTrackTintColor={colors.pillBg}
+              thumbTintColor={colors.accent}
+            />
+          </View>
+
+          <View style={[styles.inputBox, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
+            <TextInput
+              style={[styles.inputBoxText, { color: colors.textPrimary }]}
+              placeholder="0.00"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="decimal-pad"
+              value={amountText}
+              onChangeText={handleAmountTextChange}
+            />
+            <Text style={[styles.inputBoxUnit, { color: colors.textSecondary }]}>A50</Text>
+          </View>
         </View>
+
         {amountError && (
           <View style={styles.errorRow}>
             <Ionicons name="alert-circle-outline" size={14} color={colors.danger} style={{ marginRight: 5 }} />
@@ -298,33 +366,45 @@ const StakeForm = ({
           </View>
         )}
 
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 20 }]}>Lock Duration</Text>
-        <View style={styles.lockGrid}>
-          {LOCK_OPTIONS.map(opt => {
-            const active = lockDays === opt.days;
-            const p = computeStakingBoost(amount > 0 ? amount : 100, opt.days);
-            return (
-              <TouchableOpacity
-                key={opt.days}
-                style={[
-                  styles.lockChip,
-                  {
-                    backgroundColor: active ? colors.accent : colors.pillBg,
-                    borderColor:     active ? colors.accent : 'transparent',
-                  },
-                ]}
-                onPress={() => setLockDays(opt.days)}
-              >
-                <Text style={[styles.lockChipLabel, { color: active ? '#fff' : colors.textPrimary }]}>
-                  {opt.label}
-                </Text>
-                <Text style={[styles.lockChipSub, { color: active ? 'rgba(255,255,255,0.75)' : colors.textMuted }]}>
-                  {amount > 0 ? `+${p.boostPct.toFixed(1)}%` : opt.sublabel}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        {/* Duration Slider */}
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 24 }]}>Lock Duration</Text>
+
+        <View style={styles.sliderContainer}>
+          <View style={{ flex: 1 }}>
+            <Slider
+              style={styles.slider}
+              minimumValue={0}
+              maximumValue={MAX_LOCK_DAYS}
+              step={1}
+              value={lockDays}
+              onValueChange={handleDurationSliderChange}
+              minimumTrackTintColor={colors.accent}
+              maximumTrackTintColor={colors.pillBg}
+              thumbTintColor={colors.accent}
+            />
+          </View>
+
+          <View style={[styles.inputBox, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
+            <TextInput
+              style={[styles.inputBoxText, { color: colors.textPrimary }]}
+              placeholder="0"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="decimal-pad"
+              value={String(lockDays)}
+              onChangeText={(text) => {
+                const val = parseInt(text) || 0;
+                const clamped = Math.max(0, Math.min(MAX_LOCK_DAYS, val));
+                setLockDays(clamped);
+              }}
+            />
+            <Text style={[styles.inputBoxUnit, { color: colors.textSecondary }]}>days</Text>
+          </View>
         </View>
+
+        {/* Duration label */}
+        <Text style={[styles.durationLabel, { color: colors.textMuted }]} >
+          {formatDuration(lockDays)}
+        </Text>
 
         {/* Live preview */}
         {amount > 0 && !amountError && (
@@ -489,12 +569,12 @@ const InfoModal = ({ visible, onClose, colors, isDark }: any) => (
             {
               icon: 'calculator-outline',
               title: 'Commitment Score',
-              body: 'score = (amount ÷ 100) × (days ÷ 30)\n\nExamples:\n• 10 A50 / 30d → score 0.10\n• 100 A50 / 30d → score 1.0\n• 300 A50 / 90d → score 9.0 (max boost)',
+              body: 'score = (amount ÷ 100) × (days ÷ 30)\n\nExamples:\n• 10 A50 / 30d → score 0.10\n• 100 A50 / 30d → score 1.0\n• 300 A50 / 90d → score 9.0',
             },
             {
               icon: 'flash-outline',
               title: 'Mining Boost Formula',
-              body: 'boost% = min(10 × √score, 30%)\nmultiplier = 1 + boost% ÷ 100\n\nThe boost is capped at 30% (×1.30) to prevent whale dominance. Both small stakers and patient long-term holders can reach max.',
+              body: 'boost% = 10 × √score\nmultiplier = 1 + boost% ÷ 100\n\nYour mining share weight increases with your commitment score. The higher your score, the greater your boost.',
             },
             {
               icon: 'share-social-outline',
@@ -508,8 +588,8 @@ const InfoModal = ({ visible, onClose, colors, isDark }: any) => (
             },
             {
               icon: 'wallet-outline',
-              title: 'Balance Protection',
-              body: 'Locked coins are invisible to the send/transfer screen. You can only send your available (unlocked) balance. This is enforced locally on the device.',
+              title: 'Available Balance',
+              body: 'Your spendable balance is always your unlocked coins. Locked coins are held separately and protected.',
             },
           ].map(item => (
             <View key={item.title} style={[styles.infoItem, { borderBottomColor: colors.divider }]}>
@@ -539,13 +619,13 @@ const InfoModal = ({ visible, onClose, colors, isDark }: any) => (
 
 const BoostExplanation = ({ stake, colors, isDark }: any) => (
   <View style={[styles.card, { backgroundColor: isDark ? colors.card2 : '#F0F4F8', borderColor: colors.cardBorder, marginTop: 4 }]}>
-    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginBottom: 10 }]}>Why Your Boost Is {stake.boostPct.toFixed(1)}%</Text>
+    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginBottom: 10 }]}>Your Boost Calculation</Text>
     <PreviewRow label={`${fmt(stake.lockedAmount)} ÷ 100`}  value={`= ${(stake.lockedAmount / 100).toFixed(3)}`}   colors={colors} />
     <PreviewRow label={`${stake.lockDays} ÷ 30`}           value={`= ${(stake.lockDays / 30).toFixed(3)}`}         colors={colors} />
-    <PreviewRow label="Score (product)"                    value={stake.score.toFixed(3)}                          colors={colors} />
+    <PreviewRow label="Commitment Score"                    value={stake.score.toFixed(3)}                          colors={colors} />
     <PreviewRow label={`10 × √${stake.score.toFixed(3)}`}  value={`= ${(10 * Math.sqrt(stake.score)).toFixed(3)}%`} colors={colors} />
-    <PreviewRow label="After 30% cap"                      value={`${stake.boostPct.toFixed(2)}%`}                  colors={colors} accent />
-    <PreviewRow label="Multiplier (1 + boost÷100)"         value={`×${stake.multiplier.toFixed(4)}`}               colors={colors} accent />
+    <PreviewRow label="Current Boost"                      value={`${stake.boostPct.toFixed(2)}%`}                  colors={colors} accent />
+    <PreviewRow label="Share Multiplier"                    value={`×${stake.multiplier.toFixed(4)}`}               colors={colors} accent />
   </View>
 );
 
@@ -567,7 +647,7 @@ const DetailRow = ({ label, value, colors, accent }: any) => (
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const styles = applyFontScaling(StyleSheet.create({
   root:            { flex: 1 },
   header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   iconBtn:         { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
@@ -575,7 +655,7 @@ const styles = StyleSheet.create({
   scroll:          { paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 },
 
   card:            { borderRadius: 16, borderWidth: 1, padding: 18, marginBottom: 14 },
-  sectionLabel:    { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
+  sectionLabel:    { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 },
 
   balRow:          { flexDirection: 'row', justifyContent: 'space-between' },
   metaLabel:       { fontSize: 12, marginBottom: 4 },
@@ -584,16 +664,20 @@ const styles = StyleSheet.create({
   inlineNote:      { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 12 },
   inlineNoteText:  { fontSize: 12, fontWeight: '500' },
 
-  inputRow:        { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, height: 50 },
-  input:           { flex: 1, fontSize: 20, fontWeight: '600' },
-  inputUnit:       { fontSize: 14, fontWeight: '500', marginLeft: 8 },
+  sliderContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+  slider:          { flex: 1, height: 40 },
+  inputBox:        { width: 90, borderRadius: 10, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, height: 44 },
+  inputBoxText:    { flex: 1, fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  inputBoxUnit:    { fontSize: 11, fontWeight: '500', marginLeft: 4 },
+
+  durationLabel:   { fontSize: 12, marginTop: 8, textAlign: 'center' },
+
+  welcomeBanner:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 16 },
+  welcomeBannerTitle: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  welcomeBannerText:  { fontSize: 12, lineHeight: 17 },
+
   errorRow:        { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   errorText:       { fontSize: 12 },
-
-  lockGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  lockChip:        { borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 10, minWidth: 90, alignItems: 'center' },
-  lockChipLabel:   { fontSize: 13, fontWeight: '700' },
-  lockChipSub:     { fontSize: 11, marginTop: 2 },
 
   previewBox:      { borderRadius: 12, borderWidth: 1, padding: 14, marginTop: 14 },
   previewRow:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
@@ -628,6 +712,6 @@ const styles = StyleSheet.create({
   infoIconWrap:    { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(93,173,226,0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 14, marginTop: 2 },
   infoItemTitle:   { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   infoItemBody:    { fontSize: 13, lineHeight: 19 },
-});
+}));
 
 export default StakingScreen;

@@ -20,6 +20,7 @@ import config from '../config/environment';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import ThemedCard from './ThemedCard';
+import { applyFontScaling } from '../utils/fontScaling';
 
 interface WalletSetupScreenProps {
   navigation: any;
@@ -102,18 +103,27 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
       // Log referral code being sent (for debugging)
       console.log('📋 Registration payload - referralCode:', referralCode || '(none)');
 
-      const response = await fetch(`${environment.baseUrl}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: `${currentAccount.address.substring(0, 10)}@aura50.local`,
-          password: validPassword,
-          firstName: 'Mobile',
-          lastName: 'User',
-          username: currentAccount.address.substring(0, 12),
-          referralCode: referralCode || undefined, // Include referral code if provided
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      let response;
+      try {
+        response = await fetch(`${environment.baseUrl}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: `${currentAccount.address.substring(0, 10)}@aura50.local`,
+            password: validPassword,
+            firstName: 'Mobile',
+            lastName: 'User',
+            username: currentAccount.address.substring(0, 12),
+            referralCode: referralCode || undefined, // Include referral code if provided
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -139,17 +149,24 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
 
         // Sync wallet address to backend (for transfers)
         try {
-          await fetch(`${environment.baseUrl}/api/user/sync-wallet`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${data.token}`,
-            },
-            body: JSON.stringify({
-              walletAddress: currentAccount.address,
-            }),
-          });
-          console.log('✅ Wallet address synced to backend');
+          const syncController = new AbortController();
+          const syncTimeoutId = setTimeout(() => syncController.abort(), 5000); // 5s timeout
+          try {
+            await fetch(`${environment.baseUrl}/api/user/sync-wallet`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${data.token}`,
+              },
+              body: JSON.stringify({
+                walletAddress: currentAccount.address,
+              }),
+              signal: syncController.signal,
+            });
+            console.log('✅ Wallet address synced to backend');
+          } finally {
+            clearTimeout(syncTimeoutId);
+          }
         } catch (syncErr) {
           console.warn('⚠️ Failed to sync wallet address:', syncErr);
           // Non-critical, continue anyway
@@ -550,7 +567,7 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
   );
 };
 
-const styles = StyleSheet.create({
+const styles = applyFontScaling(StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -834,4 +851,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
-});
+}));

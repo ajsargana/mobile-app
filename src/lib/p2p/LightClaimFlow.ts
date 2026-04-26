@@ -28,6 +28,8 @@ export interface ClaimRequest {
   userId: string;
   /** JWT auth token for the authenticated API calls */
   authToken: string;
+  /** Optional staking boost multiplier (backend clamps to [1.0, 1.50]) */
+  stakingBoost?: number;
 }
 
 export interface ClaimResult {
@@ -104,7 +106,7 @@ async function apiFetch<T>(path: string, options: RequestInit): Promise<T> {
  * breaking.
  */
 export async function claimEpochReward(req: ClaimRequest): Promise<ClaimResult> {
-  const { epochId, userId, authToken } = req;
+  const { epochId, userId, authToken, stakingBoost } = req;
   const authHeader = { Authorization: `Bearer ${authToken}` };
 
   // ── Step 1: Get or fetch the verified epoch root ──────────────────────────
@@ -249,6 +251,7 @@ export async function claimEpochReward(req: ClaimRequest): Promise<ClaimResult> 
         body: JSON.stringify({
           leafIndex: serverProof.leafIndex,
           proof: serverProof.proof,
+          ...(stakingBoost !== undefined && { stakingBoost }),
         }),
       }
     );

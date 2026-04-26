@@ -18,6 +18,8 @@ import { NetworkService } from '../services/NetworkService';
 import { Transaction, TrustLevel, User } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemedCard from './ThemedCard';
+import { StakingPill } from './StakingPill';
+import { applyFontScaling } from '../utils/fontScaling';
 
 const { width } = Dimensions.get('window');
 
@@ -211,7 +213,6 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
 
   const handleSend = useCallback(() => navigation.navigate('SendTransaction'), [navigation]);
   const handleReceive = useCallback(() => navigation.navigate('ReceiveTransaction'), [navigation]);
-  const handleSeedPhrase = useCallback(() => navigation.navigate('SeedPhrase'), [navigation]);
 
   const trustInfo = useMemo(() => {
     const user = walletService.getUser();
@@ -328,6 +329,13 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
 
       {/* Action Buttons */}
       <View style={styles.actionContainer}>
+        {/* Stake Button with Staking Pill Animation */}
+        <View style={styles.actionButton}>
+          <StakingPill
+            onPress={() => navigation.navigate('Staking')}
+          />
+        </View>
+
         <TouchableOpacity style={styles.actionButton} onPress={handleSend}>
           <LinearGradient colors={['#FF6B6B', '#FF8E8E']} style={styles.actionGradient}>
             <Ionicons name="arrow-up-outline" size={24} color="#FFF" />
@@ -339,13 +347,6 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
           <LinearGradient colors={['#4ECDC4', '#7FDBDA']} style={styles.actionGradient}>
             <Ionicons name="arrow-down-outline" size={24} color="#FFF" />
             <Text style={styles.actionText}>Receive</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton} onPress={handleSeedPhrase}>
-          <LinearGradient colors={['#45B7D1', '#6BC5E8']} style={styles.actionGradient}>
-            <Ionicons name="key-outline" size={24} color="#FFF" />
-            <Text style={styles.actionText}>Seed</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -378,7 +379,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
             </Text>
           </View>
         ) : (
-          transactions.slice(0, 5).map((tx) => {
+          transactions.filter((tx, i, arr) => arr.findIndex(t => t.id === tx.id) === i).slice(0, 5).map((tx) => {
             const isPositive = isPositiveTransaction(tx);
             const label = getTransactionLabel(tx);
             const isReward = tx.type && ['mining', 'mining_reward', 'participation', 'referral', 'referral_bonus'].includes(tx.type);
@@ -415,7 +416,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = applyFontScaling(StyleSheet.create({
   container: { flex: 1 },
   skeletonBase: { backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 4 },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -479,4 +480,4 @@ const styles = StyleSheet.create({
   transactionAmount: { alignItems: 'flex-end' },
   transactionAmountText: { fontSize: 16, fontWeight: 'bold' },
   transactionCurrency: { fontSize: 12, color: '#7F8C8D', marginTop: 2 },
-});
+}));
