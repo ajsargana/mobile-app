@@ -55,6 +55,14 @@
           "androidMode": "default",
           "androidCollapsedTitle": "AURA50"
         }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "AURA50 needs the camera to verify you're a real person before mining (face liveness check).",
+          "enableMicrophonePermission": false,
+          "enableCodeScanner": false
+        }
       ]
     ],
     "extra": {

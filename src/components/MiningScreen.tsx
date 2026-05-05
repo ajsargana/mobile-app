@@ -11,6 +11,7 @@ import {
   ScrollView,
   InteractionManager,
   Modal,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,9 +21,11 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { MiningService } from '../services/MiningService';
+import { MiningService, VERIFICATION_REQUIRED_EVENT } from '../services/MiningService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
 import { NetworkService } from '../services/NetworkService';
+import HumanVerificationService, { DailySeed } from '../services/HumanVerificationService';
+import VerificationGate from './verification/VerificationGate';
 import { applyFontScaling } from '../utils/fontScaling';
 import {
   enableBackgroundMining,
@@ -159,6 +162,13 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   // Ref mirrors isMining so AppState callbacks always read the current value
   const isMiningRef     = useRef(false);
 
+  // ── Daily human-verification gate ────────────────────────────────────────
+  const [verificationVisible, setVerificationVisible] = useState(false);
+  const [verificationSeed, setVerificationSeed] = useState<DailySeed | null>(null);
+  // After the gate passes, run this continuation. Holds the function we would
+  // have called if no gate were needed (either Alert flow or performStartMining).
+  const pendingStartRef = useRef<null | (() => void)>(null);
+
   const showAchievementToast = (badgeId: string) => {
     const defs = AchievementService.getInstance().getDefinitions();
     const def  = defs.find(d => d.id === badgeId);
@@ -224,6 +234,25 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       iconRotate.setValue(0);
     }
   }, [isMining, iconRotate]);
+
+  // Server-driven verification trigger: when a 403 with `requiresVerification`
+  // arrives from /api/participation/can-participate or /api/blocks/submit-share,
+  // open the gate (with the seed the server already issued).
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(VERIFICATION_REQUIRED_EVENT, (payload: any) => {
+      if (!mountedRef.current) return;
+      const seedPayload: DailySeed | null =
+        payload && payload.seed && payload.sig && typeof payload.day === 'number'
+          ? { seed: payload.seed, sig: payload.sig, day: payload.day }
+          : null;
+      setVerificationSeed(seedPayload);
+      setVerificationVisible(true);
+      // No pending continuation — user just gets their daily verification done;
+      // they'll tap the mining button again when ready.
+      pendingStartRef.current = null;
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -601,6 +630,22 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     disableBackgroundMining().catch(e => console.warn('[BGMining] disable:', e));
   }, []);
 
+  // Continuation: run after the verification gate passes (or if it isn't needed).
+  // Captures the original branching logic between the NEW-user Alert and a
+  // direct start call.
+  const proceedToStart = useCallback(() => {
+    const user = walletService.getUser();
+    if (onboardingStep !== 4 && user && walletService.calculateTrustLevel(user) === TrustLevel.NEW) {
+      Alert.alert(
+        'Block Participation',
+        "Your device will contribute lightweight consensus work to the network.",
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Start', onPress: performStartMining }]
+      );
+    } else {
+      performStartMining();
+    }
+  }, [onboardingStep, performStartMining]);
+
   const handlePress = useCallback(async () => {
     pressBounce();
     if (isMining) {
@@ -620,20 +665,24 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     }
     try {
       if (!canStartMining()) return;
-      const user = walletService.getUser();
-      if (onboardingStep !== 4 && user && walletService.calculateTrustLevel(user) === TrustLevel.NEW) {
-        Alert.alert(
-          'Block Participation',
-          "Your device will contribute lightweight consensus work to the network.",
-          [{ text: 'Cancel', style: 'cancel' }, { text: 'Start', onPress: performStartMining }]
-        );
-      } else {
-        await performStartMining();
+
+      // Daily human-verification gate. One pass per UTC day unlocks all
+      // sessions for the day; we trust the local cache here and let the
+      // server force a re-gate via 403 if needed.
+      const verifySvc = HumanVerificationService.getInstance();
+      const verifiedToday = await verifySvc.isVerifiedToday();
+      if (!verifiedToday) {
+        pendingStartRef.current = proceedToStart;
+        setVerificationSeed(null); // gate will fetch its own seed
+        setVerificationVisible(true);
+        return;
       }
+
+      proceedToStart();
     } catch (_) {
       Alert.alert('Error', 'Failed to start participation. Please try again.');
     }
-  }, [isMining, canStartMining, onboardingStep]);
+  }, [isMining, canStartMining, proceedToStart]);
 
   // ── Derived values (memoized — don't recalculate on unrelated renders) ───
   const {
@@ -1056,6 +1105,22 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         </View>
       </Animated.View>
     </Modal>
+
+    {/* ── Daily human-verification gate ── */}
+    <VerificationGate
+      visible={verificationVisible}
+      seed={verificationSeed}
+      onPass={() => {
+        setVerificationVisible(false);
+        const cont = pendingStartRef.current;
+        pendingStartRef.current = null;
+        if (cont) cont();
+      }}
+      onCancel={() => {
+        setVerificationVisible(false);
+        pendingStartRef.current = null;
+      }}
+    />
     </>
   );
 };

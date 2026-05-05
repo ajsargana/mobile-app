@@ -34,6 +34,9 @@ module.exports = function (api) {
           },
         },
       ],
+      // react-native-worklets-core — required by vision-camera frame processors.
+      // Must be the LAST plugin in the list.
+      'react-native-worklets-core/plugin',
     ],
   };
 };

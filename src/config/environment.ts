@@ -142,6 +142,16 @@ export const API_ENDPOINTS = {
   insurancePoolRewards: '/api/insurance-pool/rewards',
   insurancePoolDonate: '/api/insurance-pool/donate',
   insurancePoolProposals: '/api/insurance-pool/proposals',
+
+  // On-chain Staking
+  stakingStake: '/api/staking/stake',
+  stakingUnstake: '/api/staking/unstake',
+  stakingQuery: '/api/staking',
+
+  // AMM / DEX (contracts API)
+  contractsCall: '/api/contracts',
+  contractsState: '/api/contracts',
+  jsonRpc: '/rpc',
 };
 
 // Feature flags

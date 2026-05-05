@@ -349,6 +349,13 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
             <Text style={styles.actionText}>Receive</Text>
           </LinearGradient>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Swap')}>
+          <LinearGradient colors={['#9B59B6', '#8E44AD']} style={styles.actionGradient}>
+            <Ionicons name="swap-horizontal-outline" size={24} color="#FFF" />
+            <Text style={styles.actionText}>Swap</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
 
       {/* Multiple Accounts Notice */}
@@ -443,7 +450,7 @@ const styles = applyFontScaling(StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-around',
     paddingHorizontal: 24, paddingVertical: 20,
   },
-  actionButton: { flex: 1, marginHorizontal: 8 },
+  actionButton: { flex: 1, marginHorizontal: 4 },
   actionGradient: { alignItems: 'center', paddingVertical: 16, borderRadius: 12 },
   actionText: { color: '#FFF', fontSize: 14, fontWeight: 'bold', marginTop: 4 },
   accountsNotice: {

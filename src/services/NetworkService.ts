@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { DeviceEventEmitter } from 'react-native';
 import config from '../config/environment';
 import { P2PConnection, NetworkStats, Transaction, Block } from '../types';
+import { VERIFICATION_REQUIRED_EVENT } from './MiningService';
 
 export class NetworkService {
   private static instance: NetworkService;
@@ -559,6 +561,15 @@ export class NetworkService {
           try {
             const error = await response.json();
             errorMessage = error.message || errorMessage;
+            // Daily human-verification gate: server rejected because the
+            // user hasn't passed today's challenge. Surface to UI.
+            if (response.status === 403 && error?.requiresVerification) {
+              DeviceEventEmitter.emit(VERIFICATION_REQUIRED_EVENT, {
+                seed: error.seed ?? null,
+                sig: error.sig ?? null,
+                day: error.day ?? null,
+              });
+            }
             console.error('❌ Mining share rejected (JSON):', error);
           } catch (e) {
             console.error('❌ Failed to parse error JSON');

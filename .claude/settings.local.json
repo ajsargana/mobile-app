@@ -53,7 +53,11 @@
       "Bash(grep -r \"submitShare\\\\|/api/blocks\" /c/Users/ajsar/aura50/server/*.ts)",
       "Bash(grep:*)",
       "Bash(python3 scripts/search.py \"button shine gloss premium animation\" --domain ux -n 5)",
-      "Bash(npx expo:*)"
+      "Bash(npx expo:*)",
+      "Bash(npm view *)",
+      "Bash(npm ci *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ajsar\\\\Downloads\\\\mobile-apps\\\\aura50\\\\EthForge\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20 FullName)"
     ]
   }
 }

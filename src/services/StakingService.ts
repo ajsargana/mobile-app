@@ -1,23 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EnhancedWalletService } from './EnhancedWalletService';
+import { getApiUrl, API_ENDPOINTS } from '../config/environment';
 
 const STORAGE_KEY_PREFIX = '@aura50_staking_data';
 
-/** Returns the AsyncStorage key scoped to a specific wallet address. */
 function storageKeyForAccount(walletAddress: string): string {
   return `${STORAGE_KEY_PREFIX}_${walletAddress}`;
 }
 
-export type LockDays = number; // Allows any lock duration from 0 to 1095 days
+export type LockDays = number;
 
 export interface StakeRecord {
-  lockedAmount: number;  // A50 coins locked
-  lockDays: LockDays;    // chosen lock period
-  startTime: number;     // epoch ms
-  endTime: number;       // startTime + lockDays * 86_400_000
-  score: number;         // (lockedAmount/100) * (lockDays/30)
-  boostPct: number;      // min(10 * sqrt(score), 50)  — rounded to 2dp
-  multiplier: number;    // 1 + boostPct / 100
+  lockedAmount: number;
+  lockDays: LockDays;
+  startTime: number;
+  endTime: number;
+  score: number;
+  boostPct: number;
+  multiplier: number;
 }
 
 export interface BoostPreview {
@@ -26,26 +26,22 @@ export interface BoostPreview {
   multiplier: number;
 }
 
-// ── Pure math ─────────────────────────────────────────────────────────────────
-
-/**
- * Compute boost for any amount + lock duration.
- * No minimums — even 1 A50 earns a proportional boost.
- *
- * score      = (lockedAmount / 100) * (lockDays / 30)
- * boostPct   = min(10 * sqrt(score), 50)
- * multiplier = 1 + boostPct / 100
- */
 export function computeStakingBoost(amount: number, lockDays: number): BoostPreview {
   if (amount <= 0 || lockDays <= 0) return { score: 0, boostPct: 0, multiplier: 1 };
-  const score     = (amount / 100) * (lockDays / 30);
-  const boostPct  = Math.min(10 * Math.sqrt(score), 50);
+  const score      = (amount / 100) * (lockDays / 30);
+  const boostPct   = Math.min(10 * Math.sqrt(score), 50);
   const multiplier = 1 + boostPct / 100;
   return {
     score:      Math.round(score * 100) / 100,
     boostPct:   Math.round(boostPct * 100) / 100,
-    multiplier: Math.round(multiplier * 10000) / 10000,
+    multiplier: Math.round(multiplier * 10_000) / 10_000,
   };
+}
+
+// ── Auth token helper ─────────────────────────────────────────────────────────
+
+async function getAuthToken(): Promise<string | null> {
+  return AsyncStorage.getItem('@aura50_auth_token');
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -54,7 +50,7 @@ export class StakingService {
   private static instance: StakingService;
   private activeStake: StakeRecord | null = null;
   private loaded = false;
-  private loadedForWallet: string | null = null; // which wallet's stake is in memory
+  private loadedForWallet: string | null = null;
 
   private constructor() {}
 
@@ -65,12 +61,10 @@ export class StakingService {
     return StakingService.instance;
   }
 
-  // ── Load / persist ──────────────────────────────────────────────────────────
+  // ── Load ────────────────────────────────────────────────────────────────────
 
   async load(): Promise<void> {
     const wallet = EnhancedWalletService.getInstance().getCurrentAccount()?.address ?? null;
-
-    // If the active account changed since last load, discard cached state and reload.
     if (this.loaded && this.loadedForWallet === wallet) return;
 
     this.loaded = false;
@@ -82,6 +76,31 @@ export class StakingService {
       return;
     }
 
+    // Try backend first, fall back to AsyncStorage (offline)
+    try {
+      const token = await getAuthToken();
+      if (token) {
+        const url = `${getApiUrl(API_ENDPOINTS.stakingQuery)}/${encodeURIComponent(wallet)}`;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const { stake } = await res.json();
+          this.activeStake = stake ?? null;
+          // Sync to AsyncStorage for offline use
+          if (this.activeStake) {
+            await AsyncStorage.setItem(storageKeyForAccount(wallet), JSON.stringify(this.activeStake));
+          } else {
+            await AsyncStorage.removeItem(storageKeyForAccount(wallet));
+          }
+          this.loaded = true;
+          return;
+        }
+      }
+    } catch {
+      // Network error — fall through to AsyncStorage
+    }
+
     try {
       const raw = await AsyncStorage.getItem(storageKeyForAccount(wallet));
       this.activeStake = raw ? JSON.parse(raw) : null;
@@ -91,21 +110,6 @@ export class StakingService {
     this.loaded = true;
   }
 
-  private async persist(): Promise<void> {
-    const wallet = EnhancedWalletService.getInstance().getCurrentAccount()?.address;
-    if (!wallet) return;
-    const key = storageKeyForAccount(wallet);
-    if (this.activeStake) {
-      await AsyncStorage.setItem(key, JSON.stringify(this.activeStake));
-    } else {
-      await AsyncStorage.removeItem(key);
-    }
-  }
-
-  /**
-   * Call this after the user logs out or switches accounts so stale stake
-   * data from the previous account is never sent with the new account's shares.
-   */
   resetForAccountSwitch(): void {
     this.activeStake = null;
     this.loaded = false;
@@ -114,33 +118,69 @@ export class StakingService {
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  /** Returns the current active stake, or null if none. */
   async getActiveStake(): Promise<StakeRecord | null> {
     await this.load();
     return this.activeStake;
   }
 
-  /**
-   * Stake `amount` A50 for `lockDays` days.
-   * Coins are immediately deducted from spendable balance.
-   * There is no early unlock — coins return only after endTime.
-   */
   async stake(amount: number, lockDays: LockDays): Promise<StakeRecord> {
     await this.load();
 
     if (amount <= 0) throw new Error('Stake amount must be greater than zero.');
     if (this.activeStake) throw new Error('An active stake already exists. Unstake after it expires first.');
 
-    const walletService = EnhancedWalletService.getInstance();
     const available = this.getAvailableBalanceSync();
-
     if (amount > available) {
       throw new Error(`Insufficient balance. Available: ${available.toFixed(2)} A50`);
     }
 
+    const token = await getAuthToken();
+    if (token) {
+      try {
+        const res = await fetch(getApiUrl(API_ENDPOINTS.stakingStake), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ amount, lockDays }),
+        });
+
+        if (res.ok) {
+          const { stake } = await res.json();
+          this.activeStake = stake as StakeRecord;
+          const wallet = EnhancedWalletService.getInstance().getCurrentAccount()?.address;
+          if (wallet) {
+            await AsyncStorage.setItem(storageKeyForAccount(wallet), JSON.stringify(this.activeStake));
+          }
+          // Backend deducted balance — refresh local wallet balance
+          const walletService = EnhancedWalletService.getInstance();
+          const account = walletService.getCurrentAccount();
+          if (account) {
+            const newBalance = (parseFloat(account.balance) - amount).toFixed(8);
+            await (walletService as any).updateBalance(newBalance);
+          }
+          return this.activeStake!;
+        }
+
+        const { message } = await res.json().catch(() => ({ message: 'Stake failed' }));
+        throw new Error(message);
+      } catch (err) {
+        if (err instanceof Error && !err.message.includes('fetch')) throw err;
+        // Network error — fall through to offline stake
+      }
+    }
+
+    // Offline fallback: stake locally (backend will reconcile on next sync)
+    const walletService = EnhancedWalletService.getInstance();
+    const account = walletService.getCurrentAccount();
+    if (account) {
+      const newBalance = (parseFloat(account.balance) - amount).toFixed(8);
+      await (walletService as any).updateBalance(newBalance);
+    }
+
     const { score, boostPct, multiplier } = computeStakingBoost(amount, lockDays);
     const now = Date.now();
-
     const record: StakeRecord = {
       lockedAmount: amount,
       lockDays,
@@ -151,32 +191,53 @@ export class StakingService {
       multiplier,
     };
 
-    // Deduct from wallet — coins are locked, not spendable
-    const account = walletService.getCurrentAccount();
-    if (account) {
-      const newBalance = (parseFloat(account.balance) - amount).toFixed(8);
-      await (walletService as any).updateBalance(newBalance);
-    }
-
     this.activeStake = record;
-    await this.persist();
+    const wallet = EnhancedWalletService.getInstance().getCurrentAccount()?.address;
+    if (wallet) {
+      await AsyncStorage.setItem(storageKeyForAccount(wallet), JSON.stringify(record));
+    }
     return record;
   }
 
-  /**
-   * Unstake — only allowed once endTime has passed.
-   * Returns the staked amount to the wallet balance.
-   */
   async unstake(): Promise<void> {
     await this.load();
 
     if (!this.activeStake) throw new Error('No active stake to release.');
-
     if (Date.now() < this.activeStake.endTime) {
       const days = this.getRemainingDays();
       throw new Error(`Coins are locked for ${days} more day${days !== 1 ? 's' : ''}. No early withdrawal.`);
     }
 
+    const token = await getAuthToken();
+    if (token) {
+      try {
+        const res = await fetch(getApiUrl(API_ENDPOINTS.stakingUnstake), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const { released } = await res.json();
+          const walletService = EnhancedWalletService.getInstance();
+          const account = walletService.getCurrentAccount();
+          if (account && released) {
+            const restored = (parseFloat(account.balance) + released).toFixed(8);
+            await (walletService as any).updateBalance(restored);
+          }
+          this.activeStake = null;
+          const wallet = account?.address;
+          if (wallet) await AsyncStorage.removeItem(storageKeyForAccount(wallet));
+          return;
+        }
+
+        const { message } = await res.json().catch(() => ({ message: 'Unstake failed' }));
+        throw new Error(message);
+      } catch (err) {
+        if (err instanceof Error && !err.message.includes('fetch')) throw err;
+      }
+    }
+
+    // Offline fallback
     const walletService = EnhancedWalletService.getInstance();
     const account = walletService.getCurrentAccount();
     if (account) {
@@ -184,32 +245,28 @@ export class StakingService {
       await (walletService as any).updateBalance(restored);
     }
 
+    const wallet = account?.address;
     this.activeStake = null;
-    await this.persist();
+    if (wallet) await AsyncStorage.removeItem(storageKeyForAccount(wallet));
   }
 
   // ── Read helpers ────────────────────────────────────────────────────────────
 
-  /** Share multiplier used by MiningService (1.0 if no active stake). */
   getBoostMultiplier(): number {
     if (!this.activeStake) return 1.0;
-    // Guard: expired stakes still in memory before unstake() is called
     if (Date.now() >= this.activeStake.endTime) return 1.0;
     return this.activeStake.multiplier;
   }
 
-  /** Milliseconds until unlock (0 if expired or no stake). */
   getRemainingMs(): number {
     if (!this.activeStake) return 0;
     return Math.max(0, this.activeStake.endTime - Date.now());
   }
 
-  /** Whole days remaining (ceiling). */
   getRemainingDays(): number {
     return Math.ceil(this.getRemainingMs() / 86_400_000);
   }
 
-  /** Hours + minutes left for display (e.g. "3h 42m"). */
   getRemainingLabel(): string {
     const ms = this.getRemainingMs();
     if (ms <= 0) return 'Unlockable now';
@@ -222,26 +279,19 @@ export class StakingService {
     return `${mins}m remaining`;
   }
 
-  /** True only when lock has expired and coins can be claimed. */
   canUnstake(): boolean {
     if (!this.activeStake) return false;
     return Date.now() >= this.activeStake.endTime;
   }
 
-  /**
-   * Spendable balance = wallet balance minus any locked stake.
-   * Call this instead of walletService.getBalance() when checking
-   * whether a send/transfer is affordable.
-   */
   getAvailableBalanceSync(): number {
     const walletService = EnhancedWalletService.getInstance();
     const account = walletService.getCurrentAccount();
-    const total = account ? parseFloat(account.balance) : 0;
+    const total  = account ? parseFloat(account.balance) : 0;
     const locked = this.activeStake?.lockedAmount ?? 0;
     return Math.max(0, total - locked);
   }
 
-  /** Pure preview for the UI calculator — no side effects. */
   preview(amount: number, lockDays: number): BoostPreview {
     return computeStakingBoost(amount, lockDays);
   }

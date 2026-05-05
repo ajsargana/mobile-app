@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DeviceEventEmitter } from 'react-native';
 import { MiningSession, DeviceMetrics, NetworkStats } from '../types';
 import { EnhancedWalletService } from './EnhancedWalletService';
 import { NetworkService } from './NetworkService';
@@ -6,6 +7,15 @@ import { sha256 } from 'js-sha256';
 import config from '../config/environment';
 import NotificationService from './NotificationService';
 import StakingService from './StakingService';
+
+/**
+ * Emitted when the server returns 403 `requiresVerification: true` from
+ * /api/participation/can-participate or /api/mining/start. The MiningScreen
+ * subscribes to this event and opens the daily verification gate.
+ *
+ * Payload: { seed: string; sig: string; day: number } | null
+ */
+export const VERIFICATION_REQUIRED_EVENT = 'aura50_requires_verification';
 
 // Expo Go compatibility: these modules require custom dev build
 // Provide fallbacks for Expo Go testing
@@ -133,6 +143,27 @@ export class MiningService {
           'Authorization': `Bearer ${authToken}`
         }
       });
+
+      // 403 with requiresVerification → daily human verification gate.
+      // Emit event so MiningScreen can open the gate; refuse mining for now.
+      if (response.status === 403) {
+        try {
+          const body = await response.json();
+          if (body?.requiresVerification) {
+            DeviceEventEmitter.emit(VERIFICATION_REQUIRED_EVENT, {
+              seed: body.seed,
+              sig: body.sig,
+              day: body.day,
+            });
+            return {
+              canMine: false,
+              reason: body.reason || 'Daily human verification required',
+            };
+          }
+        } catch (e) {
+          console.warn('Failed to parse 403 body:', e);
+        }
+      }
 
       if (!response.ok) {
         // SECURITY FIX: Check local cooldown cache when backend unavailable
