@@ -794,7 +794,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         ref={marketCardRef}
         onLayout={(e) => setMarketLayoutY(e.nativeEvent.layout.y)}
       >
-      <ThemedCard style={[styles.sectionCard, styles.lastCard]}>
+      <ThemedCard style={[styles.sectionCard, styles.lastCard] as any}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('home.market')}</Text>
           <View style={styles.marketActions}>

@@ -250,7 +250,7 @@ export class BackgroundValidationService {
       this.deviceState.chargingType = this.getChargingType(powerState);
 
       // Power save mode
-      this.deviceState.isPowerSaveMode = await DeviceInfo.isPowerSaveMode();
+      this.deviceState.isPowerSaveMode = await (DeviceInfo as any).isPowerSaveMode();
 
       // Network state
       const netInfo = await NetInfo.fetch();
@@ -393,7 +393,7 @@ export class BackgroundValidationService {
 
     // Check charging type
     if (this.deviceState.isCharging) {
-      if (!this.config.chargingTypes.includes(this.deviceState.chargingType)) {
+      if (!this.config.chargingTypes.includes(this.deviceState.chargingType as 'usb' | 'ac' | 'wireless')) {
         return { ready: false, reason: `Charging type not allowed: ${this.deviceState.chargingType}` };
       }
     }

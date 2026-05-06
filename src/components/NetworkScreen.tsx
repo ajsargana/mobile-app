@@ -200,7 +200,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ navigation }) => {
         style={styles.statusHeader}
       >
         <View style={styles.statusContainer}>
-          <Ionicons name={getNetworkTypeIcon()} size={32} color="#FFF" />
+          <Ionicons name={getNetworkTypeIcon() as any} size={32} color="#FFF" />
           <Text style={styles.statusTitle}>
             {isConnected ? 'Connected to AURA5O Network' : 'Offline Mode'}
           </Text>

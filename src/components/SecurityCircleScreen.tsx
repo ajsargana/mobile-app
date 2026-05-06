@@ -78,12 +78,12 @@ export function SecurityCircleScreen({ navigation }: SecurityCircleScreenProps) 
       // Get circle status
       const circleStatus = await securityCircleService.getSecurityCircleStatus(user.id);
       if (circleStatus) {
-        setMembers(circleStatus.members);
+        setMembers(circleStatus.members as any);
       }
 
       // Get pending invites
       const pendingInvites = await securityCircleService.getPendingInvites(user.id);
-      setInviteLinks(pendingInvites);
+      setInviteLinks(pendingInvites as any);
 
     } catch (error) {
       console.error('Failed to load circle data:', error);

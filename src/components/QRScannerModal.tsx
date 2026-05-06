@@ -125,10 +125,10 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
           {/* Scanner frame */}
           <View style={styles.scannerFrame}>
-            <View style={styles.corner} style={[styles.corner, styles.topLeft]} />
-            <View style={styles.corner} style={[styles.corner, styles.topRight]} />
-            <View style={styles.corner} style={[styles.corner, styles.bottomLeft]} />
-            <View style={styles.corner} style={[styles.corner, styles.bottomRight]} />
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
           </View>
 
           {/* Close button */}

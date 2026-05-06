@@ -388,6 +388,12 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     };
   }, []);
 
+  const advanceOnboarding = useCallback((fromStep: number) => {
+    const next = fromStep + 1;
+    setOnboardingStep(next);
+    AsyncStorage.setItem(ONBOARDING_STEP_KEY, String(next)).catch(() => {});
+  }, []);
+
   // Re-read onboarding step when screen gains focus
   // Only advances (Math.max) to prevent stale reads from going backwards
   // Skips entirely once onboarding is complete (step >= 9)
@@ -522,12 +528,6 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     stakeLoop.start();
     return () => stakeLoop.stop();
   }, [stakeShakeAnim, stakeZoomAnim]);
-
-  const advanceOnboarding = useCallback((fromStep: number) => {
-    const next = fromStep + 1;
-    setOnboardingStep(next);
-    AsyncStorage.setItem(ONBOARDING_STEP_KEY, String(next)).catch(() => {});
-  }, []);
 
   const dismissMiningHint = useCallback(() => {
     setShowMiningHint(false);

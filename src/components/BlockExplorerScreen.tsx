@@ -107,7 +107,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
       </View>
       <View style={styles.statContent}>
         <Text style={[styles.statLabel, { color: colors.textMuted }]}>{label}</Text>
-        <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+        <Text style={[styles.statValue, { color: colors.textPrimary }]}>{value}</Text>
       </View>
     </View>
   );
@@ -129,7 +129,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
             <Ionicons name="cube" size={16} color={colors.accent} />
           </View>
           <View style={styles.blockInfo}>
-            <Text style={[styles.blockHeight, { color: colors.text }]}>Block #{height}</Text>
+            <Text style={[styles.blockHeight, { color: colors.textPrimary }]}>Block #{height}</Text>
             <Text style={[styles.blockTime, { color: colors.textMuted }]}>
               {timestamp}
             </Text>
@@ -147,7 +147,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
@@ -155,18 +155,18 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: colors.bg }]}
       contentContainerStyle={{ paddingTop: insets.top }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Block Explorer</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Block Explorer</Text>
         <TouchableOpacity
           style={styles.searchButton}
           onPress={() => navigation.navigate('ExplorerSearch')}
         >
-          <Ionicons name="search" size={20} color={colors.text} />
+          <Ionicons name="search" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -174,7 +174,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
       {stats && (
         <>
           <ThemedCard style={styles.statsSection} padding={16}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Network Overview</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Network Overview</Text>
 
             <View style={styles.statsGrid}>
               <StatCard
@@ -196,7 +196,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
 
             <View style={styles.divider} />
 
-            <Text style={[styles.sectionSubtitle, { color: colors.text }]} className="mt-4">
+            <Text style={[styles.sectionSubtitle, { color: colors.textPrimary }]} className="mt-4">
               Blockchain Statistics
             </Text>
 
@@ -220,7 +220,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
 
             <View style={styles.divider} />
 
-            <Text style={[styles.sectionSubtitle, { color: colors.text }]} className="mt-4">
+            <Text style={[styles.sectionSubtitle, { color: colors.textPrimary }]} className="mt-4">
               Economics
             </Text>
 
@@ -233,13 +233,13 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
               </View>
               <View style={styles.economicsRow}>
                 <Text style={[styles.economicsLabel, { color: colors.textMuted }]}>Max Supply</Text>
-                <Text style={[styles.economicsValue, { color: colors.text }]}>
+                <Text style={[styles.economicsValue, { color: colors.textPrimary }]}>
                   {stats.economics.maxSupply}
                 </Text>
               </View>
               <View style={styles.economicsRow}>
                 <Text style={[styles.economicsLabel, { color: colors.textMuted }]}>Block Reward</Text>
-                <Text style={[styles.economicsValue, { color: colors.text }]}>
+                <Text style={[styles.economicsValue, { color: colors.textPrimary }]}>
                   {stats.economics.currentBlockReward} A50
                 </Text>
               </View>
@@ -251,7 +251,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
       {/* Recent Blocks */}
       <ThemedCard style={styles.blocksSection} padding={16}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Blocks</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recent Blocks</Text>
           <TouchableOpacity onPress={() => navigation.navigate('BlocksList')}>
             <Text style={[styles.viewAll, { color: colors.accent }]}>View All</Text>
           </TouchableOpacity>
@@ -268,14 +268,14 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
 
       {/* Quick Links */}
       <ThemedCard style={styles.linksSection} padding={16}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Links</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Quick Links</Text>
 
         <TouchableOpacity
           style={[styles.quickLink, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}
           onPress={() => navigation.navigate('TopMiners')}
         >
           <Ionicons name="podium" size={20} color={colors.accent} />
-          <Text style={[styles.quickLinkText, { color: colors.text }]}>Top Miners</Text>
+          <Text style={[styles.quickLinkText, { color: colors.textPrimary }]}>Top Miners</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </TouchableOpacity>
 
@@ -284,7 +284,7 @@ export const BlockExplorerScreen: React.FC<BlockExplorerScreenProps> = ({ naviga
           onPress={() => navigation.navigate('RecentTransactions')}
         >
           <Ionicons name="swap-horizontal" size={20} color={colors.accent} />
-          <Text style={[styles.quickLinkText, { color: colors.text }]}>Recent Transactions</Text>
+          <Text style={[styles.quickLinkText, { color: colors.textPrimary }]}>Recent Transactions</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </TouchableOpacity>
       </ThemedCard>

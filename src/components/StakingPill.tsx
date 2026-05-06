@@ -101,7 +101,7 @@ export const StakingPill: React.FC<StakingPillProps> = ({ onPress, stakingBoost,
   };
 
   return (
-    <Animated.View style={[animatedStyle, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
+    <Animated.View style={[animatedStyle, { flex: 1, justifyContent: 'center', alignItems: 'center' }] as any}>
       <TouchableOpacity
         onPress={onPress}
         style={[

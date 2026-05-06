@@ -350,9 +350,9 @@ export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps)
       const circleProgress = await securityCircleService.getCircleProgress(user.id);
       setProgress(circleProgress);
       const circleStatus = await securityCircleService.getSecurityCircleStatus(user.id);
-      if (circleStatus) setMembers(circleStatus.members);
+      if (circleStatus) setMembers(circleStatus.members as any);
       const pendingInvites = await securityCircleService.getPendingInvites(user.id);
-      setInviteLinks(pendingInvites);
+      setInviteLinks(pendingInvites as any);
       // Sync from backend first so the balance shown is the real server value
       await walletService.syncBalanceFromBackend();
       setUserBalance(parseFloat(walletService.getBalance()) || 0);
@@ -669,13 +669,13 @@ export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps)
         {/* ── Dropdown: top N list ── */}
         {forgersOpen && !leaderboardLoading && (
           leaderboard.length === 0 ? (
-            <ThemedCard style={[styles.emptyCard, { borderColor: colors.cardBorder }]} padding={32}>
+            <ThemedCard style={[styles.emptyCard, { borderColor: colors.cardBorder }] as any} padding={32}>
               <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                 No referrals recorded this month yet.{'\n'}Share your invite code to climb!
               </Text>
             </ThemedCard>
           ) : (
-            <ThemedCard style={[styles.dropdownList, { borderColor: colors.cardBorder }]} padding={0}>
+            <ThemedCard style={[styles.dropdownList, { borderColor: colors.cardBorder }] as any} padding={0}>
               {dropdownTop.map((entry, idx) => (
                 <LeaderboardRow
                   key={entry.userId}
@@ -703,7 +703,7 @@ export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps)
         </View>
 
         {/* Lock dial + stats */}
-        <ThemedCard style={[styles.circleCard, { borderColor: colors.cardBorder }]} padding={20}>
+        <ThemedCard style={[styles.circleCard, { borderColor: colors.cardBorder }] as any} padding={20}>
           <View style={styles.dialWrapper}>
             <View style={[styles.dialOuter, {
               borderColor: isDark ? 'rgba(93,173,226,0.18)' : '#E5E7EB',
@@ -759,7 +759,7 @@ export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps)
 
         {/* Existing invite links */}
         {inviteLinks.length > 0 && (
-          <ThemedCard style={[styles.inviteLinksCard, { borderColor: colors.cardBorder }]} padding={14}>
+          <ThemedCard style={[styles.inviteLinksCard, { borderColor: colors.cardBorder }] as any} padding={14}>
             <Text style={[styles.inviteLinksTitle, { color: colors.textPrimary }]}>Your Invite Codes</Text>
             {inviteLinks.map((invite, idx) => (
               <View
@@ -802,7 +802,7 @@ export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps)
 
         {/* Circle members */}
         {members.length > 0 && (
-          <ThemedCard style={[styles.membersCard, { borderColor: colors.cardBorder }]} padding={14}>
+          <ThemedCard style={[styles.membersCard, { borderColor: colors.cardBorder }] as any} padding={14}>
             <Text style={[styles.membersTitle, { color: colors.textPrimary }]}>Circle Members</Text>
             {members.map((member, idx) => (
               <View

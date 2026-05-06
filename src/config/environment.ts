@@ -231,7 +231,7 @@ if (ENV === 'development') {
   console.log(`Platform: ${Platform.OS}`);
   console.log(`Base URL: ${config.baseUrl}`);
   console.log(`P2P Port: ${config.p2pPort}`);
-  console.log(`Bootstrap Nodes:`, BOOTSTRAP_NODES[ENV === 'production' ? 'production' : 'development']);
+  console.log(`Bootstrap Nodes:`, BOOTSTRAP_NODES['development']);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 

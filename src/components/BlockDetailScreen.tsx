@@ -80,7 +80,7 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
@@ -88,7 +88,7 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
 
   if (!block) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <Text style={[styles.errorText, { color: colors.textMuted }]}>Failed to load block</Text>
       </View>
     );
@@ -96,25 +96,25 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: colors.bg }]}
       contentContainerStyle={{ paddingTop: insets.top }}
     >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Block Details</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Block Details</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {/* Block Info */}
       <ThemedCard style={styles.card} padding={16}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Block Information</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Block Information</Text>
 
         <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
           <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Block Height</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>{block.height || 'N/A'}</Text>
+          <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{block.height || 'N/A'}</Text>
         </View>
 
         <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
@@ -126,7 +126,7 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
 
         <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
           <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Timestamp</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>
+          <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
             {block.timestamp ? new Date(block.timestamp).toLocaleString() : 'N/A'}
           </Text>
         </View>
@@ -139,28 +139,28 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
         {block.participantCount !== undefined && (
           <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
             <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Participants</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{block.participantCount}</Text>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{block.participantCount}</Text>
           </View>
         )}
 
         {block.difficulty !== undefined && (
           <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
             <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Difficulty</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{block.difficulty.toLocaleString()}</Text>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{block.difficulty.toLocaleString()}</Text>
           </View>
         )}
 
         {block.nonce !== undefined && (
           <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
             <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Nonce</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{block.nonce}</Text>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{block.nonce}</Text>
           </View>
         )}
       </ThemedCard>
 
       {/* Hashes and Merkle */}
       <ThemedCard style={styles.card} padding={16}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Cryptographic Data</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Cryptographic Data</Text>
         <HashDisplay label="Block Hash" value={block.hash} />
         {block.prevHash && <HashDisplay label="Previous Hash" value={block.prevHash} />}
         {block.merkleRoot && <HashDisplay label="Merkle Root" value={block.merkleRoot} />}
@@ -169,7 +169,7 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
       {/* Participants */}
       {block.participants && block.participants.length > 0 && (
         <ThemedCard style={styles.card} padding={16}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
             Participants ({block.participants.length})
           </Text>
           {block.participants.map((p, idx) => (
@@ -178,7 +178,7 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
               style={[styles.participantRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}
             >
               <View style={styles.participantInfo}>
-                <Text style={[styles.participantName, { color: colors.text }]}>{p.username || 'Unknown'}</Text>
+                <Text style={[styles.participantName, { color: colors.textPrimary }]}>{p.username || 'Unknown'}</Text>
                 <Text style={[styles.participantShares, { color: colors.textMuted }]}>
                   {p.shares || 0} share{p.shares !== 1 ? 's' : ''}
                 </Text>
@@ -192,7 +192,7 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
       {/* Transactions */}
       {block.transactions && block.transactions.length > 0 && (
         <ThemedCard style={styles.card} padding={16}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
             Transactions ({block.transactions.length})
           </Text>
           {block.transactions.slice(0, 5).map((tx, idx) => (
@@ -202,7 +202,7 @@ export const BlockDetailScreen: React.FC<BlockDetailScreenProps> = ({ navigation
               onPress={() => tx.id && navigation.navigate('TransactionDetail', { txId: tx.id })}
             >
               <View style={styles.txInfo}>
-                <Text style={[styles.txType, { color: colors.text }]}>{tx.type || 'Unknown'}</Text>
+                <Text style={[styles.txType, { color: colors.textPrimary }]}>{tx.type || 'Unknown'}</Text>
                 <Text style={[styles.txId, { color: colors.textMuted }]} numberOfLines={1}>
                   {tx.id ? tx.id.substring(0, 16) + '...' : 'N/A'}
                 </Text>

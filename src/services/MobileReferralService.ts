@@ -342,7 +342,7 @@ export class MobileReferralService {
       }
 
       // Listen for node rewards and apply referral bonuses
-      this.nodeService.on?.('rewardEarned', async (reward: any) => {
+      (this.nodeService as any).on?.('rewardEarned', async (reward: any) => {
         await this.processNodeReferralBonus(reward);
       });
 

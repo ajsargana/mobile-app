@@ -94,10 +94,10 @@ export const BlockTransactionsScreen: React.FC<BlockTransactionsScreenProps> = (
     >
       <View style={styles.txLeft}>
         <View style={[styles.txIcon, { backgroundColor: isDark ? 'rgba(93,173,226,0.12)' : '#EEF2FF' }]}>
-          <Ionicons name={getTransactionIcon(tx.type)} size={16} color={colors.accent} />
+          <Ionicons name={getTransactionIcon(tx.type) as any} size={16} color={colors.accent} />
         </View>
         <View style={styles.txInfo}>
-          <Text style={[styles.txType, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.txType, { color: colors.textPrimary }]} numberOfLines={1}>
             {tx.type || 'Unknown'}
           </Text>
           <Text style={[styles.txId, { color: colors.textMuted }]} numberOfLines={1}>
@@ -113,14 +113,14 @@ export const BlockTransactionsScreen: React.FC<BlockTransactionsScreenProps> = (
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.title, { color: colors.text }]}>Block Transactions</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Block Transactions</Text>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>{total} transaction{total !== 1 ? 's' : ''}</Text>
         </View>
         <View style={{ width: 24 }} />

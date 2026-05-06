@@ -50,22 +50,22 @@ export const ExplorerSearchScreen: React.FC<ExplorerSearchScreenProps> = ({ navi
 
   const ResultHeader = ({ title, count }: { title: string; count: number }) =>
     count > 0 ? (
-      <Text style={[styles.resultHeader, { color: colors.text }]}>
+      <Text style={[styles.resultHeader, { color: colors.textPrimary }]}>
         {title} ({count})
       </Text>
     ) : null;
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: colors.bg }]}
       contentContainerStyle={{ paddingTop: insets.top }}
     >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Search</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Search</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -84,7 +84,7 @@ export const ExplorerSearchScreen: React.FC<ExplorerSearchScreenProps> = ({ navi
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSearch}
-            style={[styles.input, { color: colors.text }]}
+            style={[styles.input, { color: colors.textPrimary }]}
           />
           {query ? (
             <TouchableOpacity onPress={() => setQuery('')}>
@@ -123,7 +123,7 @@ export const ExplorerSearchScreen: React.FC<ExplorerSearchScreenProps> = ({ navi
                 >
                   <Ionicons name="cube" size={16} color={colors.accent} />
                   <View style={styles.resultContent}>
-                    <Text style={[styles.resultTitle, { color: colors.text }]}>Block #{block.height}</Text>
+                    <Text style={[styles.resultTitle, { color: colors.textPrimary }]}>Block #{block.height}</Text>
                     <Text style={[styles.resultSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
                       {block.hash ? block.hash.substring(0, 24) + '...' : 'N/A'}
                     </Text>
@@ -149,7 +149,7 @@ export const ExplorerSearchScreen: React.FC<ExplorerSearchScreenProps> = ({ navi
                 >
                   <Ionicons name="swap-horizontal" size={16} color={colors.accent} />
                   <View style={styles.resultContent}>
-                    <Text style={[styles.resultTitle, { color: colors.text }]}>{tx.type}</Text>
+                    <Text style={[styles.resultTitle, { color: colors.textPrimary }]}>{tx.type}</Text>
                     <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
                       {tx.amount} A50
                     </Text>
@@ -175,7 +175,7 @@ export const ExplorerSearchScreen: React.FC<ExplorerSearchScreenProps> = ({ navi
                 >
                   <Ionicons name="wallet" size={16} color={colors.accent} />
                   <View style={styles.resultContent}>
-                    <Text style={[styles.resultTitle, { color: colors.text }]}>{address.username || 'Unknown'}</Text>
+                    <Text style={[styles.resultTitle, { color: colors.textPrimary }]}>{address.username || 'Unknown'}</Text>
                     <Text style={[styles.resultSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
                       {address.address ? address.address.substring(0, 24) + '...' : 'N/A'}
                     </Text>

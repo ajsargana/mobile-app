@@ -132,7 +132,7 @@ export const AddressDetailScreen: React.FC<AddressDetailScreenProps> = ({ naviga
   const StatRow = ({ label, value, color }: { label: string; value: string | number; color?: string }) => (
     <View style={[styles.statRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
       <Text style={[styles.statLabel, { color: colors.textMuted }]}>{label}</Text>
-      <Text style={[styles.statValue, { color: color || colors.text }]}>{value}</Text>
+      <Text style={[styles.statValue, { color: color || colors.textPrimary }]}>{value}</Text>
     </View>
   );
 
@@ -146,14 +146,14 @@ export const AddressDetailScreen: React.FC<AddressDetailScreenProps> = ({ naviga
           <Ionicons name="swap-horizontal" size={14} color={colors.accent} />
         </View>
         <View style={styles.txInfo}>
-          <Text style={[styles.txType, { color: colors.text }]}>{tx.type}</Text>
+          <Text style={[styles.txType, { color: colors.textPrimary }]}>{tx.type}</Text>
           <Text style={[styles.txAddress, { color: colors.textMuted }]} numberOfLines={1}>
             {tx.from === address ? `To: ${tx.to ? tx.to.substring(0, 12) : 'Unknown'}...` : `From: ${tx.from ? tx.from.substring(0, 12) : 'Unknown'}...`}
           </Text>
         </View>
       </View>
       <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: tx.from === address ? colors.text : colors.accent }]}>
+        <Text style={[styles.txAmount, { color: tx.from === address ? colors.textPrimary : colors.accent }]}>
           {tx.from === address ? '-' : '+'}{tx.amount}
         </Text>
       </View>
@@ -170,7 +170,7 @@ export const AddressDetailScreen: React.FC<AddressDetailScreenProps> = ({ naviga
           <Ionicons name="flash" size={14} color="#FFD700" />
         </View>
         <View style={styles.txInfo}>
-          <Text style={[styles.txType, { color: colors.text }]}>Block #{mining.height}</Text>
+          <Text style={[styles.txType, { color: colors.textPrimary }]}>Block #{mining.height}</Text>
           <Text style={[styles.txAddress, { color: colors.textMuted }]}>
             {mining.shares} share{mining.shares !== 1 ? 's' : ''}
           </Text>
@@ -184,7 +184,7 @@ export const AddressDetailScreen: React.FC<AddressDetailScreenProps> = ({ naviga
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
@@ -192,20 +192,20 @@ export const AddressDetailScreen: React.FC<AddressDetailScreenProps> = ({ naviga
 
   if (!addressData) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <Text style={[styles.errorText, { color: colors.textMuted }]}>Failed to load address</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
           {addressData.username || (address ? address.substring(0, 12) + '...' : 'Unknown')}
         </Text>
         <TouchableOpacity onPress={() => copyToClipboard(address)}>

@@ -119,7 +119,7 @@ export const ProfileEditScreen: React.FC<ProfileEditScreenProps> = ({ navigation
 
   // ── Copy picked image to a stable file:// URI ────────────────────────────────
   const saveImageLocally = useCallback(async (sourceUri: string): Promise<string> => {
-    const dest = `${FileSystem.documentDirectory}profile_picture.jpg`;
+    const dest = `${(FileSystem as any).documentDirectory}profile_picture.jpg`;
     try {
       // Remove any stale copy first (avoids caching issues)
       const info = await FileSystem.getInfoAsync(dest);

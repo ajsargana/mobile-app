@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NetworkService } from './NetworkService';
 import { EnhancedWalletService } from './EnhancedWalletService';
 import { ethers } from 'ethers';
-import { secp256k1 } from '@noble/secp256k1';
+import * as secp256k1 from '@noble/secp256k1';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { getOrCreatePeerIdentity } from '../lib/p2p/PeerIdentity';
@@ -375,7 +375,7 @@ export class ConsensusParticipation {
     }
 
     const sig = secp256k1.sign(msgHash, hexToBytes(this.privateKeyHex));
-    return bytesToHex(sig.toCompactRawBytes());
+    return bytesToHex(sig);
   }
 
   /**
@@ -394,7 +394,7 @@ export class ConsensusParticipation {
         passed: vote.validationResult.passed,
       });
       const msgHash = sha256(new TextEncoder().encode(voteData));
-      return secp256k1.verify(vote.signature, msgHash, vote.publicKeyHex);
+      return secp256k1.verify(hexToBytes(vote.signature), msgHash, hexToBytes(vote.publicKeyHex));
     } catch {
       return false;
     }

@@ -302,7 +302,7 @@ export class SybilInsurancePool {
         signal: createTimeoutSignal(config.timeout),
       });
 
-      const data = await this.parseJSON(response);
+      const data = await this.parseJSON<any>(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Donation failed');
@@ -334,7 +334,7 @@ export class SybilInsurancePool {
         throw new Error(`Server error: ${response.status}`);
       }
 
-      const data = await this.parseJSON(response);
+      const data = await this.parseJSON<any>(response);
       return data.proposals || [];
     } catch (error) {
       console.warn('Failed to fetch proposals:', error);
@@ -356,7 +356,7 @@ export class SybilInsurancePool {
         signal: createTimeoutSignal(config.timeout),
       });
 
-      const data = await this.parseJSON(response);
+      const data = await this.parseJSON<any>(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to create proposal');
@@ -380,7 +380,7 @@ export class SybilInsurancePool {
         }
       );
 
-      const data = await this.parseJSON(response);
+      const data = await this.parseJSON<any>(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to cast vote');

@@ -231,7 +231,7 @@ export const TransactionHistoryScreen = ({ route }: any) => {
       if (!token) {
         // No auth - load local transactions only
         await loadLocalTransactions(wallet);
-        safeSetState(setNetworkStatus, prev => ({ ...prev, syncStatus: 'offline', isOnline: false }));
+        safeSetState(setNetworkStatus, (prev: NetworkStatus) => ({ ...prev, syncStatus: 'offline', isOnline: false } as NetworkStatus));
         return;
       }
 
@@ -279,7 +279,7 @@ export const TransactionHistoryScreen = ({ route }: any) => {
           // Auth expired - show message but still load local
           safeSetState(setError, 'Session expired. Showing cached transactions.');
           await loadLocalTransactions(wallet);
-          safeSetState(setNetworkStatus, prev => ({ ...prev, syncStatus: 'offline', isOnline: false }));
+          safeSetState(setNetworkStatus, (prev: NetworkStatus) => ({ ...prev, syncStatus: 'offline', isOnline: false } as NetworkStatus));
         } else {
           throw new Error(`Server error: ${response.status}`);
         }
@@ -291,7 +291,7 @@ export const TransactionHistoryScreen = ({ route }: any) => {
         console.warn('Failed to fetch from server, using cached data:', fetchError.message);
         safeSetState(setError, 'Could not connect to network. Showing cached transactions.');
         await loadLocalTransactions(wallet);
-        safeSetState(setNetworkStatus, prev => ({ ...prev, syncStatus: 'offline', isOnline: false }));
+        safeSetState(setNetworkStatus, (prev: NetworkStatus) => ({ ...prev, syncStatus: 'offline', isOnline: false } as NetworkStatus));
       }
     } catch (error) {
       console.error('Failed to load transactions:', error);
@@ -413,7 +413,7 @@ export const TransactionHistoryScreen = ({ route }: any) => {
       // Fallback: check wallet address
       const walletService = EnhancedWalletService.getInstance();
       const wallet = walletService.getCurrentAccount();
-      if (wallet && (tx.from === wallet.address || tx.from === wallet.userId)) return 'Sent';
+      if (wallet && (tx.from === wallet.address || tx.from === (wallet as any).userId)) return 'Sent';
       return 'Received';
     }
 

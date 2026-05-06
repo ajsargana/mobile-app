@@ -198,14 +198,14 @@ export class DecentralizedVideoTransferService {
       });
 
       // Handle ICE candidates
-      peerConnection.onicecandidate = async (event) => {
+      (peerConnection as any).onicecandidate = async (event: any) => {
         if (event.candidate) {
           await this.sendIceCandidateP2P(sessionId, pioneerId, event.candidate);
         }
       };
 
       // Handle connection state changes
-      peerConnection.onconnectionstatechange = () => {
+      (peerConnection as any).onconnectionstatechange = () => {
         const connection = this.pioneerConnections.get(pioneerId);
         if (connection) {
           console.log(`Pioneer ${pioneerId}: ${peerConnection.connectionState}`);
@@ -253,7 +253,7 @@ export class DecentralizedVideoTransferService {
 
     try {
       await connection.peerConnection.setRemoteDescription(
-        new RTCSessionDescription(answer)
+        new RTCSessionDescription(answer as any)
       );
       console.log(`✅ Received answer from pioneer ${pioneerId}`);
     } catch (error) {

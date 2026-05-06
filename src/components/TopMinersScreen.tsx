@@ -78,7 +78,7 @@ export const TopMinersScreen: React.FC<TopMinersScreenProps> = ({ navigation }) 
       </View>
 
       <View style={styles.minerInfo}>
-        <Text style={[styles.minerName, { color: colors.text }]} numberOfLines={1}>
+        <Text style={[styles.minerName, { color: colors.textPrimary }]} numberOfLines={1}>
           {miner.username || 'Unknown'}
         </Text>
         <Text style={[styles.minerAddress, { color: colors.textMuted }]} numberOfLines={1}>
@@ -96,7 +96,7 @@ export const TopMinersScreen: React.FC<TopMinersScreenProps> = ({ navigation }) 
         {miner.miningStreak !== undefined && (
           <View style={styles.statColumn}>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Streak</Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>
               {miner.miningStreak}d
             </Text>
           </View>
@@ -116,7 +116,7 @@ export const TopMinersScreen: React.FC<TopMinersScreenProps> = ({ navigation }) 
           ]}
           onPress={() => handlePeriodChange(p)}
         >
-          <Text style={[styles.periodText, { color: period === p ? '#FFF' : colors.text }]}>
+          <Text style={[styles.periodText, { color: period === p ? '#FFF' : colors.textPrimary }]}>
             {p === 'all' ? 'All Time' : p === '24h' ? '24h' : p === '7d' ? '7d' : '30d'}
           </Text>
         </TouchableOpacity>
@@ -125,13 +125,13 @@ export const TopMinersScreen: React.FC<TopMinersScreenProps> = ({ navigation }) 
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Top Miners</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Top Miners</Text>
         <View style={{ width: 24 }} />
       </View>
 

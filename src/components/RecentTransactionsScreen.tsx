@@ -107,7 +107,7 @@ export const RecentTransactionsScreen: React.FC<RecentTransactionsScreenProps> =
         </View>
 
         <View style={styles.txInfo}>
-          <Text style={[styles.txType, { color: colors.text }]}>{typeLabel}</Text>
+          <Text style={[styles.txType, { color: colors.textPrimary }]}>{typeLabel}</Text>
           <View style={styles.txAddressRow}>
             <Text style={[styles.txAddress, { color: colors.textMuted }]} numberOfLines={1}>
               {formatAddress(tx.from)} → {formatAddress(tx.to)}
@@ -126,13 +126,13 @@ export const RecentTransactionsScreen: React.FC<RecentTransactionsScreenProps> =
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Recent Transactions</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Recent Transactions</Text>
         <View style={{ width: 24 }} />
       </View>
 

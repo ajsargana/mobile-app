@@ -71,7 +71,7 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
@@ -79,7 +79,7 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 
   if (!transaction) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <Text style={[styles.errorText, { color: colors.textMuted }]}>Failed to load transaction</Text>
       </View>
     );
@@ -101,15 +101,15 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: colors.bg }]}
       contentContainerStyle={{ paddingTop: insets.top }}
     >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Transaction</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Transaction</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -134,18 +134,18 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 
       {/* Transaction Details */}
       <ThemedCard style={styles.card} padding={16}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Details</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Details</Text>
 
         <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
           <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Type</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>
+          <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
             {transaction.type.replace(/_/g, ' ').toUpperCase()}
           </Text>
         </View>
 
         <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
           <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Time</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>
+          <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
             {new Date(transaction.timestamp).toLocaleString()}
           </Text>
         </View>
@@ -162,7 +162,7 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 
       {/* From/To */}
       <ThemedCard style={styles.card} padding={16}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Parties</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Parties</Text>
         <AddressDisplay label="From" address={transaction.from} />
         <AddressDisplay label="To" address={transaction.to} />
       </ThemedCard>
@@ -170,26 +170,26 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
       {/* Gas and Advanced Data */}
       {((transaction as any).gasUsed || (transaction as any).gasLimit || (transaction as any).contractAddress) && (
         <ThemedCard style={styles.card} padding={16}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Advanced</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Advanced</Text>
 
           {(transaction as any).gasUsed && (
             <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
               <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Gas Used</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{(transaction as any).gasUsed}</Text>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{(transaction as any).gasUsed}</Text>
             </View>
           )}
 
           {(transaction as any).gasLimit && (
             <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
               <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Gas Limit</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{(transaction as any).gasLimit}</Text>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{(transaction as any).gasLimit}</Text>
             </View>
           )}
 
           {(transaction as any).contractAddress && (
             <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
               <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Contract</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]} numberOfLines={1}>
                 {(transaction as any).contractAddress.substring(0, 12) + '...'}
               </Text>
             </View>
@@ -200,13 +200,13 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
       {/* Metadata */}
       {(transaction as any).metadata && Object.keys((transaction as any).metadata).length > 0 && (
         <ThemedCard style={styles.card} padding={16}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Metadata</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Metadata</Text>
           {Object.entries((transaction as any).metadata).map(([key, value], idx) => (
             <View key={idx} style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
               <Text style={[styles.infoLabel, { color: colors.textMuted }]} numberOfLines={1}>
                 {String(key)}
               </Text>
-              <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]} numberOfLines={1}>
                 {String(value)}
               </Text>
             </View>
@@ -217,7 +217,7 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
       {/* Block Information */}
       {transaction.block && (
         <ThemedCard style={styles.card} padding={16}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Block</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Block</Text>
 
           <TouchableOpacity
             style={[styles.blockRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}
@@ -234,7 +234,7 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 
           <View style={[styles.infoRow, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}>
             <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Confirmed</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
               {new Date(transaction.block.timestamp).toLocaleString()}
             </Text>
           </View>

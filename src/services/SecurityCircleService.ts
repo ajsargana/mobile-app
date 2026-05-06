@@ -1031,7 +1031,7 @@ export class SecurityCircleService {
         await this.recordSlashingEvent(userId, totalStakeAmount, reason, evidence);
 
         // Add slashed funds to Sybil Insurance Pool
-        await this.insurancePool.addSlashedFunds(
+        await (this.insurancePool as any).addSlashedFunds(
           userId,
           totalStakeAmount.toString(),
           reason,

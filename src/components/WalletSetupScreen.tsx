@@ -145,7 +145,7 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
           trustLevel: TrustLevel.NEW,
           miningEnabled: true,
           balance: data.user.coinBalance || '0',
-        } as User);
+        } as unknown as User);
 
         // Sync wallet address to backend (for transfers)
         try {
@@ -199,7 +199,7 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
           trustLevel: TrustLevel.NEW,
           miningEnabled: true,
           balance: '0',
-        } as User;
+        } as unknown as User;
 
         walletService.setUser(localUser);
         console.log('✅ Local user initialized (offline mode)');

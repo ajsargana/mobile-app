@@ -110,7 +110,7 @@ export function NotificationsScreen({ navigation }: any) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
       <LinearGradient
         colors={isDark ? ['#0A3D62', '#0A2744'] : ['#1D4ED8', '#2563EB']}

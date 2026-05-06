@@ -147,19 +147,36 @@ export class StakingService {
         });
 
         if (res.ok) {
-          const { stake } = await res.json();
-          this.activeStake = stake as StakeRecord;
-          const wallet = EnhancedWalletService.getInstance().getCurrentAccount()?.address;
-          if (wallet) {
-            await AsyncStorage.setItem(storageKeyForAccount(wallet), JSON.stringify(this.activeStake));
-          }
-          // Backend deducted balance — refresh local wallet balance
+          // Server now returns { ok, txId, status: 'pending' } — stake settles in ~1 min.
+          // Deduct balance optimistically; re-sync from server after one block time.
           const walletService = EnhancedWalletService.getInstance();
           const account = walletService.getCurrentAccount();
           if (account) {
             const newBalance = (parseFloat(account.balance) - amount).toFixed(8);
             await (walletService as any).updateBalance(newBalance);
           }
+
+          // Build a local pending record so UI reflects the stake immediately.
+          const { score, boostPct, multiplier } = computeStakingBoost(amount, lockDays);
+          const now = Date.now();
+          const record: StakeRecord = {
+            lockedAmount: amount,
+            lockDays,
+            startTime: now,
+            endTime:   now + lockDays * 86_400_000,
+            score,
+            boostPct,
+            multiplier,
+          };
+          this.activeStake = record;
+          const wallet = walletService.getCurrentAccount()?.address;
+          if (wallet) {
+            await AsyncStorage.setItem(storageKeyForAccount(wallet), JSON.stringify(record));
+          }
+
+          // Re-sync from ContractStorage after one block (~70s) to pick up settled state.
+          setTimeout(() => { this.syncFromServer().catch(() => {}); }, 70_000);
+
           return this.activeStake!;
         }
 
@@ -217,15 +234,12 @@ export class StakingService {
         });
 
         if (res.ok) {
-          const { released } = await res.json();
-          const walletService = EnhancedWalletService.getInstance();
-          const account = walletService.getCurrentAccount();
-          if (account && released) {
-            const restored = (parseFloat(account.balance) + released).toFixed(8);
-            await (walletService as any).updateBalance(restored);
-          }
+          // Server returns { ok, txId, status: 'pending' } — tokens return after ~1 min.
+          // Re-sync from server after one block time to confirm settled state.
+          setTimeout(() => { this.syncFromServer().catch(() => {}); }, 70_000);
           this.activeStake = null;
-          const wallet = account?.address;
+          const walletService = EnhancedWalletService.getInstance();
+          const wallet = walletService.getCurrentAccount()?.address;
           if (wallet) await AsyncStorage.removeItem(storageKeyForAccount(wallet));
           return;
         }

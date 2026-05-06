@@ -505,6 +505,8 @@ export class NetworkService {
     acceptedShares?: number;
     /** Staking boost the server actually applied to this share (e.g. 1.20). Present only on acceptance. */
     appliedBoost?: number;
+    /** Server-calculated next difficulty target for vardiff. */
+    nextDifficulty?: number;
   }> {
     try {
       const authToken = await this.getAuthToken();

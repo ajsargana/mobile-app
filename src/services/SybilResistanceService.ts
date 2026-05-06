@@ -5,6 +5,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 
 export interface DeviceAttestation {
@@ -66,7 +67,7 @@ export class SybilResistanceService {
     try {
       const deviceId = await DeviceInfo.getUniqueId();
       const isRealDevice = !await DeviceInfo.isEmulator();
-      const platform = (await DeviceInfo.getPlatform()) as 'ios' | 'android';
+      const platform = ((await (DeviceInfo as any).getPlatform?.()) ?? Platform.OS) as 'ios' | 'android';
 
       // In production: Use SafetyNet (Android) or DeviceCheck (iOS)
       // For now, basic device verification

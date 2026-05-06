@@ -7,7 +7,7 @@ import { ConsensusParticipation } from './ConsensusParticipation';
 import { BackgroundValidationService } from './BackgroundValidationService';
 import { SybilResistanceService } from './SybilResistanceService';
 import { CoordinatorClient } from './CoordinatorClient';
-import { Transaction, Block, Peer, TrustLevel } from '../types';
+import { Transaction, Block, TrustLevel } from '../types';
 
 export interface MobileNodeConfig {
   maxStorageSize: number; // 32MB default
@@ -291,7 +291,7 @@ export class MobileNodeService {
 
     try {
       // Configure mobile-optimized mining
-      await this.miningService.configureMobileMode({
+      await (this.miningService as any).configureMobileMode({
         intensity: 'low', // Battery-friendly
         pauseOnLowBattery: true,
         requiresCharging: this.config.backgroundSync,
@@ -367,14 +367,14 @@ export class MobileNodeService {
             result.blockHash,
             {
               passed: result.passed,
-              layer1_structure: result.layer1_structure,
-              layer2_hash: result.layer2_hash,
-              layer3_chain: result.layer3_chain,
-              layer4_timestamp: result.layer4_timestamp,
-              layer5_difficulty: result.layer5_difficulty,
-              layer6_merkle: result.layer6_merkle,
-              layer7_participants: result.layer7_participants,
-              layer8_pow: result.layer8_pow,
+              layer1_structure: result.validationLayers.structure,
+              layer2_hash: result.validationLayers.hash,
+              layer3_chain: result.validationLayers.chain,
+              layer4_timestamp: result.validationLayers.timestamp,
+              layer5_difficulty: result.validationLayers.difficulty,
+              layer6_merkle: result.validationLayers.merkleRoot,
+              layer7_participants: result.validationLayers.participants,
+              layer8_pow: result.validationLayers.proofOfWork,
             }
           );
         } catch (error) {
@@ -529,7 +529,7 @@ export class MobileNodeService {
 
       const blocks = await this.getStoredBlocks();
       for (const block of blocks) {
-        if (block.timestamp < cutoffTime) {
+        if (block.timestamp.getTime() < cutoffTime) {
           await this.removeBlock(block.height);
           removedCount++;
         }

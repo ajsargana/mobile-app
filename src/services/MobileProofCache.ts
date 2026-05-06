@@ -147,10 +147,10 @@ export class MobileProofCache {
     spaceFreed: number;
   }> {
     const allKeys = await AsyncStorage.getAllKeys();
-    const proofKeys = allKeys.filter(key => key.startsWith(this.CACHE_PREFIX));
+    const proofKeys = allKeys.filter(key => key.startsWith(MobileProofCache.CACHE_PREFIX));
 
     const now = Date.now();
-    const maxAgeMs = this.MAX_CACHE_AGE_DAYS * 24 * 60 * 60 * 1000;
+    const maxAgeMs = MobileProofCache.MAX_CACHE_AGE_DAYS * 24 * 60 * 60 * 1000;
 
     let removed = 0;
     let spaceFreed = 0;
@@ -194,7 +194,7 @@ export class MobileProofCache {
    */
   async getCacheStats(): Promise<CacheStats> {
     const allKeys = await AsyncStorage.getAllKeys();
-    const proofKeys = allKeys.filter(key => key.startsWith(this.CACHE_PREFIX));
+    const proofKeys = allKeys.filter(key => key.startsWith(MobileProofCache.CACHE_PREFIX));
 
     let totalSize = 0;
     let oldestAge = 0;
@@ -236,10 +236,10 @@ export class MobileProofCache {
    */
   async clearCache(): Promise<number> {
     const allKeys = await AsyncStorage.getAllKeys();
-    const proofKeys = allKeys.filter(key => key.startsWith(this.CACHE_PREFIX));
+    const proofKeys = allKeys.filter(key => key.startsWith(MobileProofCache.CACHE_PREFIX));
 
     await AsyncStorage.multiRemove(proofKeys);
-    await AsyncStorage.removeItem(this.STATS_KEY);
+    await AsyncStorage.removeItem(MobileProofCache.STATS_KEY);
 
     this.cacheHits = 0;
     this.cacheMisses = 0;
@@ -299,7 +299,7 @@ export class MobileProofCache {
   // Private helpers
 
   private getCacheKey(userId: string, blockHeight: number): string {
-    return `${this.CACHE_PREFIX}${userId}:${blockHeight}`;
+    return `${MobileProofCache.CACHE_PREFIX}${userId}:${blockHeight}`;
   }
 
   private uint8ArrayToBase64(bytes: Uint8Array): string {

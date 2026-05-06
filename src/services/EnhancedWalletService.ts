@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as nodeCrypto from 'crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as bip39Scure from '@scure/bip39';
 import { HDKey } from '@scure/bip32';
@@ -9,6 +10,7 @@ import config, { getApiUrl, API_ENDPOINTS } from '../config/environment';
 let _wordlist: string[] | null = null;
 const getWordlist = async (): Promise<string[]> => {
   if (!_wordlist) {
+    // @ts-ignore — subpath types not declared but module resolves correctly at runtime
     const module = await import('@scure/bip39/wordlists/english');
     _wordlist = module.wordlist;
   }
@@ -440,7 +442,7 @@ export class EnhancedWalletService {
         await this.updateBalance(newBalance);
 
         if (this.user) {
-          this.user.balance = newBalance;
+          this.user.coinBalance = newBalance;
           if (profileData.totalMined !== undefined) {
             await AsyncStorage.setItem('@aura50_total_mined', profileData.totalMined.toString());
           }
@@ -702,8 +704,8 @@ export class EnhancedWalletService {
 
   private async encryptData(data: string, password: string): Promise<string> {
     // Simple encryption - in production, use proper PBKDF2 + AES
-    const key = crypto.createHash('sha256').update(password).digest();
-    const cipher = crypto.createCipher('aes-256-cbc', key);
+    const key = nodeCrypto.createHash('sha256').update(password).digest();
+    const cipher = (nodeCrypto as any).createCipher('aes-256-cbc', key);
     let encrypted = cipher.update(data, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     return encrypted;
@@ -711,8 +713,8 @@ export class EnhancedWalletService {
 
   private async decryptData(encryptedData: string, password: string): Promise<string> {
     // Simple decryption - in production, use proper PBKDF2 + AES
-    const key = crypto.createHash('sha256').update(password).digest();
-    const decipher = crypto.createDecipher('aes-256-cbc', key);
+    const key = nodeCrypto.createHash('sha256').update(password).digest();
+    const decipher = (nodeCrypto as any).createDecipher('aes-256-cbc', key);
     let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;

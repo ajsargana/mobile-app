@@ -94,7 +94,7 @@ export const BlocksListScreen: React.FC<BlocksListScreenProps> = ({ navigation }
         </View>
         <View style={styles.blockInfo}>
           <View style={styles.blockTitleRow}>
-            <Text style={[styles.blockHeight, { color: colors.text }]} numberOfLines={1}>
+            <Text style={[styles.blockHeight, { color: colors.textPrimary }]} numberOfLines={1}>
               Block #{block.height}
             </Text>
             {(block.transactionCount ?? 0) > 0 && (
@@ -120,13 +120,13 @@ export const BlocksListScreen: React.FC<BlocksListScreenProps> = ({ navigation }
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Blocks</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Blocks</Text>
         <View style={{ width: 24 }} />
       </View>
 
