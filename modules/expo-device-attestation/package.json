@@ -1,0 +1,37 @@
+{
+  "name": "expo-device-attestation",
+  "version": "0.1.0",
+  "description": "Native Play Integrity + Android Keystore Key Attestation + Apple App Attest for AURA50",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "files": [
+    "build",
+    "src",
+    "android",
+    "ios",
+    "expo-module.config.json",
+    "ExpoDeviceAttestation.podspec"
+  ],
+  "scripts": {
+    "build": "expo-module build",
+    "clean": "expo-module clean",
+    "lint": "expo-module lint",
+    "test": "expo-module test"
+  },
+  "keywords": [
+    "expo",
+    "device-attestation",
+    "play-integrity",
+    "app-attest",
+    "keystore"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "expo": ">=50.0.0",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "expo-module-scripts": "^3.5.0",
+    "expo-modules-core": "*"
+  }
+}

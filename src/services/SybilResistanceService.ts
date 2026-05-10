@@ -7,6 +7,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
+import { AttestationService } from '../lib/attestation';
 
 export interface DeviceAttestation {
   deviceId: string;
@@ -61,47 +62,56 @@ export class SybilResistanceService {
   }
 
   /**
-   * Perform device attestation
+   * Perform device attestation. Delegates to AttestationService which uses
+   * Play Integrity (Android) / App Attest (iOS) and binds the device to the
+   * current account on the server. The local DeviceAttestation cache is kept
+   * for backwards compatibility with existing UI components (SybilScoreDisplay).
    */
   private async performDeviceAttestation(): Promise<void> {
     try {
       const deviceId = await DeviceInfo.getUniqueId();
-      const isRealDevice = !await DeviceInfo.isEmulator();
+      const isRealDevice = !(await DeviceInfo.isEmulator());
       const platform = ((await (DeviceInfo as any).getPlatform?.()) ?? Platform.OS) as 'ios' | 'android';
 
-      // In production: Use SafetyNet (Android) or DeviceCheck (iOS)
-      // For now, basic device verification
-      const attestationToken = await this.generateAttestationToken(deviceId);
+      const attestation = AttestationService.getInstance();
+      const status = await attestation.fetchStatus().catch(() => null);
+
+      // If never bound, attempt the bind now. The server will reject if the user
+      // is not authenticated (fine — the mining-time auto-auth path will retry).
+      let bindOutcome: { code?: string; kind?: string; trustScore?: number } | null = null;
+      if (!status || !status.bound) {
+        bindOutcome = await attestation.bindCurrentDevice().catch((e) => ({
+          code: 'BIND_FAILED',
+          kind: undefined,
+          message: String(e),
+        }) as any);
+      }
+
+      const verified =
+        attestation.isNativeAvailable() &&
+        isRealDevice &&
+        (status?.bound === true || bindOutcome?.kind === 'first_bind' || bindOutcome?.kind === 'same_account');
 
       this.deviceAttestation = {
         deviceId,
         isRealDevice,
-        attestationToken,
+        attestationToken: bindOutcome?.code ?? status?.platform ?? 'pending',
         platform,
-        verified: isRealDevice,
+        verified,
         timestamp: Date.now(),
       };
 
       await AsyncStorage.setItem('@aura50_device_attestation', JSON.stringify(this.deviceAttestation));
 
       if (!isRealDevice) {
-        console.warn('⚠️ Emulator detected - validation may be restricted');
+        console.warn('⚠️ Emulator detected — mining will be blocked by server attestation gate');
+      }
+      if (!attestation.isNativeAvailable()) {
+        console.warn('⚠️ Native attestation module unavailable — server must be in mock mode');
       }
     } catch (error) {
       console.error('Error performing device attestation:', error);
     }
-  }
-
-  /**
-   * Generate attestation token (placeholder for SafetyNet/DeviceCheck)
-   */
-  private async generateAttestationToken(deviceId: string): Promise<string> {
-    // In production: Use platform-specific attestation
-    // Android: Google SafetyNet Attestation API
-    // iOS: Apple DeviceCheck API
-
-    const crypto = require('crypto-js');
-    return crypto.SHA256(deviceId + Date.now()).toString();
   }
 
   /**

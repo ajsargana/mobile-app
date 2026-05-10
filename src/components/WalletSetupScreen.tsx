@@ -96,44 +96,34 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
       console.log('📡 Registering user with backend...');
       const environment = config;
 
-      // Generate password that meets backend requirements (12+ chars, uppercase, lowercase, number)
+      const addrSlice = currentAccount.address; // full address — cryptographically unique, scales to any user count
+      const email = `${addrSlice}@aura50.local`;
       const basePassword = currentAccount.privateKey.substring(0, 30);
-      const validPassword = `A1${basePassword}`; // Add uppercase and number prefix
+      const validPassword = `A1${basePassword}`;
 
-      // Log referral code being sent (for debugging)
       console.log('📋 Registration payload - referralCode:', referralCode || '(none)');
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const doFetch = async (url: string, body: object, timeoutMs: number) => {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+        try {
+          return await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: ctrl.signal,
+          });
+        } finally {
+          clearTimeout(tid);
+        }
+      };
 
-      let response;
-      try {
-        response = await fetch(`${environment.baseUrl}/api/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: `${currentAccount.address.substring(0, 10)}@aura50.local`,
-            password: validPassword,
-            firstName: 'Mobile',
-            lastName: 'User',
-            username: currentAccount.address.substring(0, 12),
-            referralCode: referralCode || undefined, // Include referral code if provided
-          }),
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        await AsyncStorage.setItem('@aura50_auth_token', data.token);
+      const persistAuthSuccess = async (data: any, token: string) => {
+        await AsyncStorage.setItem('@aura50_auth_token', token);
         await AsyncStorage.setItem('@aura50_user_id', data.user.id);
-        // Persist credentials so MiningService can silently re-authenticate after token expiry
-        await AsyncStorage.setItem('@aura50_auth_email', `${currentAccount.address.substring(0, 10)}@aura50.local`);
+        await AsyncStorage.setItem('@aura50_auth_email', email);
         await AsyncStorage.setItem('@aura50_auth_pass', validPassword);
 
-        // Set user data
         walletService.setUser({
           id: data.user.id,
           username: data.user.username,
@@ -147,64 +137,97 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
           balance: data.user.coinBalance || '0',
         } as unknown as User);
 
-        // Sync wallet address to backend (for transfers)
         try {
-          const syncController = new AbortController();
-          const syncTimeoutId = setTimeout(() => syncController.abort(), 5000); // 5s timeout
+          const syncCtrl = new AbortController();
+          const syncTid = setTimeout(() => syncCtrl.abort(), 5000);
           try {
             await fetch(`${environment.baseUrl}/api/user/sync-wallet`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${data.token}`,
-              },
-              body: JSON.stringify({
-                walletAddress: currentAccount.address,
-              }),
-              signal: syncController.signal,
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ walletAddress: currentAccount.address }),
+              signal: syncCtrl.signal,
             });
             console.log('✅ Wallet address synced to backend');
           } finally {
-            clearTimeout(syncTimeoutId);
+            clearTimeout(syncTid);
           }
-        } catch (syncErr) {
-          console.warn('⚠️ Failed to sync wallet address:', syncErr);
-          // Non-critical, continue anyway
+        } catch {
+          console.warn('⚠️ Failed to sync wallet address (non-critical)');
         }
 
-        console.log('✅ User registered and authenticated with backend');
-
-        // Clear pending referral code after successful registration
         if (referralCode) {
           await AsyncStorage.removeItem('@aura50_pending_referral_code');
-          console.log('📋 Cleared pending referral code after successful registration');
         }
+      };
 
-        return true;
-      } else {
-        const error = await response.json();
-        console.warn('⚠️ Backend registration failed:', error.message);
+      const response = await doFetch(
+        `${environment.baseUrl}/api/auth/register`,
+        { email, password: validPassword, firstName: 'Mobile', lastName: 'User', username: addrSlice, referralCode: referralCode || undefined },
+        10000,
+      );
 
-        // Create local-only user (no backend)
-        const userId = currentAccount.address;
-        await AsyncStorage.setItem('@aura50_user_id', userId);
-
-        const localUser = {
-          id: userId,
-          username: currentAccount.address.substring(0, 12),
-          email: `${currentAccount.address.substring(0, 10)}@aura50.local`,
-          firstName: 'Mobile',
-          lastName: 'User',
-          createdAt: new Date(),
-          trustLevel: TrustLevel.NEW,
-          miningEnabled: true,
-          balance: '0',
-        } as unknown as User;
-
-        walletService.setUser(localUser);
-        console.log('✅ Local user initialized (offline mode)');
+      if (response.ok) {
+        const data = await response.json();
+        await persistAuthSuccess(data, data.token);
+        console.log('✅ User registered and authenticated with backend');
         return true;
       }
+
+      const errorData = await response.json();
+      console.warn('⚠️ Backend registration failed:', errorData.message);
+
+      // Account already exists — try login before giving up
+      const isAlreadyExists = response.status === 409 ||
+        (errorData.message && errorData.message.toLowerCase().includes('already'));
+
+      if (isAlreadyExists) {
+        console.log('🔄 Account exists, attempting login with derived credentials...');
+        try {
+          const loginResponse = await doFetch(
+            `${environment.baseUrl}/api/auth/login`,
+            { email, password: validPassword },
+            10000,
+          );
+
+          if (loginResponse.ok) {
+            const loginData = await loginResponse.json();
+            await persistAuthSuccess(loginData, loginData.token);
+            console.log('✅ Logged in with existing account');
+            return true;
+          }
+          console.warn('⚠️ Login also failed — falling through to offline mode');
+        } catch (loginErr) {
+          console.warn('⚠️ Login attempt error:', loginErr);
+        }
+      }
+
+      // Initialise local user so the app is functional in offline mode
+      await AsyncStorage.setItem('@aura50_user_id', currentAccount.address);
+      walletService.setUser({
+        id: currentAccount.address,
+        username: addrSlice,
+        email,
+        firstName: 'Mobile',
+        lastName: 'User',
+        createdAt: new Date(),
+        trustLevel: TrustLevel.NEW,
+        miningEnabled: true,
+        balance: '0',
+      } as unknown as User);
+
+      Alert.alert(
+        'Registration Issue',
+        isAlreadyExists
+          ? 'This wallet is already registered but login failed. You can continue in offline mode or retry.'
+          : 'Could not register with the server. You can continue in offline mode or retry.',
+        [
+          { text: 'Continue Offline', onPress: () => setStep(4) },
+          { text: 'Retry', onPress: () => registerWithBackend() },
+        ]
+      );
+      console.warn('⚠️ Continuing in offline mode — user was notified');
+      return false;
+
     } catch (error) {
       console.error('❌ Registration error:', error);
       Alert.alert(

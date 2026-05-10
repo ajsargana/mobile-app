@@ -4,6 +4,9 @@ import { DeviceEventEmitter } from 'react-native';
 import config from '../config/environment';
 import { P2PConnection, NetworkStats, Transaction, Block } from '../types';
 import { VERIFICATION_REQUIRED_EVENT } from './MiningService';
+import { AttestationService } from '../lib/attestation';
+
+export const ATTESTATION_BLOCKED_EVENT = '@aura50/attestation_blocked';
 
 export class NetworkService {
   private static instance: NetworkService;
@@ -512,9 +515,21 @@ export class NetworkService {
       const authToken = await this.getAuthToken();
       const url = `${this.baseUrl}/api/blocks/submit-share`;
 
+      // Device attestation: produce a fresh per-share attestation envelope.
+      // On rooted devices / cooldown / low-trust the server will reject with
+      // code MINING_BLOCKED — we surface the structured reason via event so the
+      // mining UI can show a clear message.
+      let attestHeaders: Record<string, string> = {};
+      try {
+        attestHeaders = await AttestationService.getInstance().attestForAction('mining_submit');
+      } catch (e) {
+        console.warn('⚠️ Attestation produce failed (will let server decide):', e);
+      }
+
       console.log('🔄 Submitting mining share:', {
         url,
         hasToken: !!authToken,
+        attested: Object.keys(attestHeaders).length > 0,
         share: { ...share, hash: share.hash.substring(0, 16) + '...' }
       });
 
@@ -522,7 +537,8 @@ export class NetworkService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
+          'Authorization': `Bearer ${authToken}`,
+          ...attestHeaders,
         },
         body: JSON.stringify(share)
       });
@@ -570,6 +586,15 @@ export class NetworkService {
                 seed: error.seed ?? null,
                 sig: error.sig ?? null,
                 day: error.day ?? null,
+              });
+            }
+            // Device attestation rejection — propagate to mining UI so it can show
+            // cooldown countdown / lock message / rooted-device warning.
+            if (response.status === 403 && error?.code === 'MINING_BLOCKED') {
+              DeviceEventEmitter.emit(ATTESTATION_BLOCKED_EVENT, {
+                reason: error.reason,
+                meta: error.meta,
+                message: error.message,
               });
             }
             console.error('❌ Mining share rejected (JSON):', error);
@@ -655,6 +680,10 @@ export class NetworkService {
         if (token) {
           await AsyncStorage.setItem('@aura50_auth_token', token);
           console.log('✅ Re-authenticated successfully');
+          // Re-bind device after re-auth — fire-and-forget; failures don't block re-auth.
+          AttestationService.getInstance().bindCurrentDevice().catch((e) => {
+            console.warn('⚠️ Device re-bind after reAuth failed:', e?.message ?? e);
+          });
           return token;
         }
       } else {

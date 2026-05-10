@@ -111,30 +111,21 @@ export const WalletRestoreScreen: React.FC<WalletRestoreScreenProps> = ({ naviga
 
       const environment = config;
 
-      // Generate deterministic credentials from wallet address
-      const email = `${currentAccount.address.substring(0, 10)}@aura50.local`;
+      // Full address — cryptographically unique, scales to 20M+ users
+      const email = `${currentAccount.address}@aura50.local`;
+      // Legacy formats for backward compat with older registrations
+      const legacy20Email = `${currentAccount.address.substring(0, 20)}@aura50.local`;
+      const legacy10Email = `${currentAccount.address.substring(0, 10)}@aura50.local`;
       const basePassword = currentAccount.privateKey.substring(0, 30);
-      const validPassword = `A1${basePassword}`; // Meets backend requirements (12+ chars, uppercase, lowercase, number)
-      const username = currentAccount.address.substring(0, 12);
+      const validPassword = `A1${basePassword}`;
+      const username = currentAccount.address;
 
-      // STEP 1: Try to LOGIN first (user might already exist from previous wallet creation)
-      console.log('📡 Attempting to login to existing account...');
-      const loginResponse = await fetch(`${environment.baseUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password: validPassword,
-        }),
-      });
-
-      if (loginResponse.ok) {
-        // LOGIN SUCCESSFUL - User already exists!
-        const data = await loginResponse.json();
+      const persistAuth = async (data: any, usedEmail: string) => {
         await AsyncStorage.setItem('@aura50_auth_token', data.token);
         await AsyncStorage.setItem('@aura50_user_id', data.user.id);
+        await AsyncStorage.setItem('@aura50_auth_email', usedEmail);
+        await AsyncStorage.setItem('@aura50_auth_pass', validPassword);
 
-        // Set user data
         walletService.setUser({
           id: data.user.id,
           username: data.user.username,
@@ -147,104 +138,105 @@ export const WalletRestoreScreen: React.FC<WalletRestoreScreenProps> = ({ naviga
           balance: data.user.coinBalance || '0',
         } as unknown as User);
 
-        // Sync wallet address to backend (for transfers)
         try {
           await fetch(`${environment.baseUrl}/api/user/sync-wallet`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${data.token}`,
-            },
-            body: JSON.stringify({
-              walletAddress: currentAccount.address,
-            }),
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+            body: JSON.stringify({ walletAddress: currentAccount.address }),
           });
           console.log('✅ Wallet address synced to backend');
-        } catch (syncErr) {
-          console.warn('⚠️ Failed to sync wallet address:', syncErr);
-          // Non-critical, continue anyway
+        } catch {
+          console.warn('⚠️ Failed to sync wallet address (non-critical)');
         }
+      };
 
-        console.log('✅ Logged in to existing account successfully');
+      // STEP 1: Try login with new 20-char credentials
+      console.log('📡 Attempting login (new credential format)...');
+      const loginResponse = await fetch(`${environment.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: validPassword }),
+      });
+
+      if (loginResponse.ok) {
+        const data = await loginResponse.json();
+        await persistAuth(data, email);
+        console.log('✅ Logged in to existing account');
         return true;
       }
 
-      // STEP 2: Login failed, try to REGISTER (new user)
+      // STEP 1b: Try 20-char legacy credentials (transitional format from intermediate fix)
+      console.log('📡 Attempting login (20-char legacy format)...');
+      const legacy20Response = await fetch(`${environment.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: legacy20Email, password: validPassword }),
+      });
+
+      if (legacy20Response.ok) {
+        const data = await legacy20Response.json();
+        await persistAuth(data, legacy20Email);
+        console.log('✅ Logged in (20-char legacy credentials)');
+        return true;
+      }
+
+      // STEP 1c: Try 10-char legacy credentials (original format, most existing users)
+      console.log('📡 Attempting login (10-char legacy format)...');
+      const legacy10Response = await fetch(`${environment.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: legacy10Email, password: validPassword }),
+      });
+
+      if (legacy10Response.ok) {
+        const data = await legacy10Response.json();
+        await persistAuth(data, legacy10Email);
+        console.log('✅ Logged in (10-char legacy credentials)');
+        return true;
+      }
+
+      // STEP 2: Both logins failed — register as new user
       console.log('📡 Login failed, registering new account...');
       const registerResponse = await fetch(`${environment.baseUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password: validPassword,
-          firstName: 'Mobile',
-          lastName: 'User',
-          username,
-        }),
+        body: JSON.stringify({ email, password: validPassword, firstName: 'Mobile', lastName: 'User', username }),
       });
 
       if (registerResponse.ok) {
         const data = await registerResponse.json();
-        await AsyncStorage.setItem('@aura50_auth_token', data.token);
-        await AsyncStorage.setItem('@aura50_user_id', data.user.id);
-
-        // Set user data
-        walletService.setUser({
-          id: data.user.id,
-          username: data.user.username,
-          email: data.user.email,
-          firstName: data.user.firstName,
-          lastName: data.user.lastName,
-          createdAt: new Date(data.user.createdAt),
-          trustLevel: TrustLevel.NEW,
-          miningEnabled: true,
-          balance: data.user.coinBalance || '0',
-        } as unknown as User);
-
-        // Sync wallet address to backend (for transfers)
-        try {
-          await fetch(`${environment.baseUrl}/api/user/sync-wallet`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${data.token}`,
-            },
-            body: JSON.stringify({
-              walletAddress: currentAccount.address,
-            }),
-          });
-          console.log('✅ Wallet address synced to backend');
-        } catch (syncErr) {
-          console.warn('⚠️ Failed to sync wallet address:', syncErr);
-          // Non-critical, continue anyway
-        }
-
+        await persistAuth(data, email);
         console.log('✅ Registered new account successfully');
         return true;
       }
 
-      // STEP 3: Both login and register failed, fallback to offline mode
-      const error = await registerResponse.json();
-      console.warn('⚠️ Backend authentication failed:', error.message);
+      // STEP 3: All attempts failed — inform the user, go offline
+      const errorData = await registerResponse.json();
+      console.warn('⚠️ Backend authentication failed:', errorData.message);
 
-      const userId = currentAccount.address;
-      await AsyncStorage.setItem('@aura50_user_id', userId);
-
-      const localUser = {
-        id: userId,
-        username: currentAccount.address.substring(0, 12),
-        email: `${currentAccount.address.substring(0, 10)}@aura50.local`,
+      await AsyncStorage.setItem('@aura50_user_id', currentAccount.address);
+      walletService.setUser({
+        id: currentAccount.address,
+        username,
+        email,
         firstName: 'Mobile',
         lastName: 'User',
         createdAt: new Date(),
         trustLevel: TrustLevel.NEW,
         miningEnabled: true,
         balance: '0',
-      } as unknown as User;
+      } as unknown as User);
 
-      walletService.setUser(localUser);
-      console.log('✅ Local user initialized (offline mode)');
-      return true;
+      Alert.alert(
+        'Authentication Issue',
+        'Could not connect to the server. You can continue in offline mode or retry.',
+        [
+          { text: 'Continue Offline', onPress: () => setStep(3) },
+          { text: 'Retry', onPress: () => registerWithBackend() },
+        ]
+      );
+      console.warn('⚠️ Continuing in offline mode — user was notified');
+      return false;
 
     } catch (error) {
       console.error('❌ Authentication error:', error);

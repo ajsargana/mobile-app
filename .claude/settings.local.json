@@ -59,7 +59,9 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ajsar\\\\Downloads\\\\mobile-apps\\\\aura50\\\\EthForge\" -Recurse -Directory)",
       "Bash(Select-Object -First 20 FullName)",
       "Bash(not exist *)",
-      "Bash(New-Item *)"
+      "Bash(New-Item *)",
+      "Bash(Get-ChildItem -Recurse -Include \"*.ts\", \"*.tsx\", \"*.js\", \"*.jsx\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

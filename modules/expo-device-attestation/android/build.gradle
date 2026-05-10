@@ -1,0 +1,46 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+group = 'expo.modules.deviceattestation'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+android {
+  compileSdkVersion safeExtGet("compileSdkVersion", 34)
+
+  def agpVersion = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION
+  if (agpVersion.tokenize('.')[0].toInteger() < 8) {
+    compileOptions {
+      sourceCompatibility JavaVersion.VERSION_11
+      targetCompatibility JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+      jvmTarget = JavaVersion.VERSION_11.majorVersion
+    }
+  }
+
+  namespace "expo.modules.deviceattestation"
+  defaultConfig {
+    minSdkVersion safeExtGet("minSdkVersion", 24) // 24 = Android 7.0; key attestation requires 24+
+    targetSdkVersion safeExtGet("targetSdkVersion", 34)
+  }
+
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Play Integrity API client
+  implementation "com.google.android.play:integrity:1.4.0"
+  // Tasks API for awaitTask
+  implementation "com.google.android.gms:play-services-tasks:18.2.0"
+  // Coroutines for the suspend bridge
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3"
+}

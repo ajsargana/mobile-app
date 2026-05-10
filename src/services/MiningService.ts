@@ -7,6 +7,7 @@ import { sha256 } from 'js-sha256';
 import config from '../config/environment';
 import NotificationService from './NotificationService';
 import StakingService from './StakingService';
+import { AttestationService } from '../lib/attestation';
 
 /**
  * Emitted when the server returns 403 `requiresVerification: true` from
@@ -1357,7 +1358,7 @@ export class MiningService {
           console.warn('⚠️ ensureAuthToken: no account available');
           return null;
         }
-        email    = `${account.address.substring(0, 10)}@aura50.local`;
+        email    = `${account.address}@aura50.local`; // full address — unique at any scale
         password = `A1${account.privateKey.substring(0, 30)}`;
       }
 
@@ -1385,7 +1386,7 @@ export class MiningService {
             password,
             firstName: 'Mobile',
             lastName:  'User',
-            username:  account?.address.substring(0, 12) ?? email.substring(0, 12),
+            username:  account?.address ?? email.split('@')[0],
           }),
         });
 
@@ -1422,6 +1423,11 @@ export class MiningService {
       if (token) {
         await AsyncStorage.setItem('@aura50_auth_token', token);
         console.log('✅ Auto-authenticated with backend');
+        // Bind device after fresh auth — keeps server's device-bind table current.
+        // Failures are non-fatal; subsequent mining calls will surface the real error.
+        AttestationService.getInstance().bindCurrentDevice().catch((e) => {
+          console.warn('⚠️ Device bind after auto-auth failed:', e?.message ?? e);
+        });
       } else {
         console.error('❌ Could not obtain auth token — mining requires network + valid account');
       }

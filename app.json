@@ -63,6 +63,13 @@
           "enableMicrophonePermission": false,
           "enableCodeScanner": false
         }
+      ],
+      [
+        "./modules/expo-device-attestation/app.plugin.js",
+        {
+          "androidCloudProjectNumber": "REPLACE_WITH_GCP_PROJECT_NUMBER",
+          "iosAppAttestEnvironment": "development"
+        }
       ]
     ],
     "extra": {
