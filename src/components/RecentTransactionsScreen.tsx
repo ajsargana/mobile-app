@@ -9,11 +9,13 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFocusEffect } from '@react-navigation/native';
-import BlockExplorerService, { Transaction } from '../services/BlockExplorerService';
+import { Transaction } from '../services/BlockExplorerService';
+import { getApiUrl, API_ENDPOINTS } from '../config/environment';
 
 interface RecentTransactionsScreenProps {
   navigation: any;
@@ -36,8 +38,25 @@ export const RecentTransactionsScreen: React.FC<RecentTransactionsScreenProps> =
   const loadTransactions = async () => {
     try {
       setLoading(true);
-      const explorer = BlockExplorerService.getInstance();
-      const data = await explorer.getRecentTransactions(50);
+      const token = await AsyncStorage.getItem('@aura50_auth_token');
+      if (token) {
+        // Use the authenticated endpoint so amounts reflect settled epoch rewards,
+        // not raw mempool/block amounts which may differ before settlement completes.
+        const response = await fetch(
+          getApiUrl(`${API_ENDPOINTS.transactionHistory}?limit=50&offset=0`),
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && Array.isArray(data.transactions)) {
+            setTransactions(data.transactions);
+            return;
+          }
+        }
+      }
+      // Fallback: public explorer endpoint (unauthenticated or auth failed)
+      const { default: BlockExplorerService } = await import('../services/BlockExplorerService');
+      const data = await BlockExplorerService.getInstance().getRecentTransactions(50);
       setTransactions(data);
     } catch (error) {
       console.error('Failed to load transactions:', error);
@@ -56,10 +75,13 @@ export const RecentTransactionsScreen: React.FC<RecentTransactionsScreenProps> =
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case 'mining_reward':
+      case 'mining':
+      case 'participation':
         return { icon: 'flash', color: '#FFD700' };
       case 'transfer':
         return { icon: 'swap-horizontal', color: colors.accent };
       case 'referral':
+      case 'referral_bonus':
         return { icon: 'people', color: '#4CAF50' };
       default:
         return { icon: 'swap-horizontal', color: colors.accent };
@@ -90,7 +112,12 @@ export const RecentTransactionsScreen: React.FC<RecentTransactionsScreenProps> =
 
   const TransactionItem = ({ tx }: { tx: Transaction }) => {
     const txIcon = getTransactionIcon(tx.type);
-    const typeLabel = tx.type === 'mining_reward' ? 'Mining' : tx.type === 'referral' ? 'Referral' : 'Transfer';
+    const typeLabel = (tx as any).typeLabel ||
+      (tx.type === 'mining_reward' || tx.type === 'mining' || tx.type === 'participation'
+        ? 'Mining Reward'
+        : tx.type === 'referral' || tx.type === 'referral_bonus'
+          ? 'Referral'
+          : tx.direction === 'sent' ? 'Sent' : 'Received');
 
     return (
       <TouchableOpacity
@@ -119,7 +146,11 @@ export const RecentTransactionsScreen: React.FC<RecentTransactionsScreenProps> =
         </View>
 
         <View style={styles.txRight}>
-          <Text style={[styles.txAmount, { color: colors.accent }]}>+{tx.amount}</Text>
+          <Text style={[styles.txAmount, {
+            color: (tx as any).direction === 'sent' ? '#dc2626' : colors.accent,
+          }]}>
+            {(tx as any).direction === 'sent' ? '-' : '+'}{parseFloat(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+          </Text>
         </View>
       </TouchableOpacity>
     );
