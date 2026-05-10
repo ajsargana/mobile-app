@@ -24,7 +24,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.aura50.mobile",
       "buildNumber": "1.0.0",
-      "backgroundModes": ["fetch", "processing"]
+      "backgroundModes": ["fetch", "processing"],
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "package": "com.aura50.mobile",

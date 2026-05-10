@@ -1425,7 +1425,7 @@ export class MiningService {
         console.log('✅ Auto-authenticated with backend');
         // Bind device after fresh auth — keeps server's device-bind table current.
         // Failures are non-fatal; subsequent mining calls will surface the real error.
-        AttestationService.getInstance().bindCurrentDevice().catch((e) => {
+        AttestationService.bindCurrentDevice().catch((e) => {
           console.warn('⚠️ Device bind after auto-auth failed:', e?.message ?? e);
         });
       } else {

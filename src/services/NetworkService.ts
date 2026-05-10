@@ -521,7 +521,7 @@ export class NetworkService {
       // mining UI can show a clear message.
       let attestHeaders: Record<string, string> = {};
       try {
-        attestHeaders = await AttestationService.getInstance().attestForAction('mining_submit');
+        attestHeaders = await AttestationService.attestForAction('mining_submit');
       } catch (e) {
         console.warn('⚠️ Attestation produce failed (will let server decide):', e);
       }
@@ -681,7 +681,7 @@ export class NetworkService {
           await AsyncStorage.setItem('@aura50_auth_token', token);
           console.log('✅ Re-authenticated successfully');
           // Re-bind device after re-auth — fire-and-forget; failures don't block re-auth.
-          AttestationService.getInstance().bindCurrentDevice().catch((e) => {
+          AttestationService.bindCurrentDevice().catch((e) => {
             console.warn('⚠️ Device re-bind after reAuth failed:', e?.message ?? e);
           });
           return token;

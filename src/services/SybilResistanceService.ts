@@ -73,7 +73,7 @@ export class SybilResistanceService {
       const isRealDevice = !(await DeviceInfo.isEmulator());
       const platform = ((await (DeviceInfo as any).getPlatform?.()) ?? Platform.OS) as 'ios' | 'android';
 
-      const attestation = AttestationService.getInstance();
+      const attestation = AttestationService;
       const status = await attestation.fetchStatus().catch(() => null);
 
       // If never bound, attempt the bind now. The server will reject if the user
