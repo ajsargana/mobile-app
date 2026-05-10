@@ -168,6 +168,9 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   // After the gate passes, run this continuation. Holds the function we would
   // have called if no gate were needed (either Alert flow or performStartMining).
   const pendingStartRef = useRef<null | (() => void)>(null);
+  // Set to true when the server triggers verification (403) mid-start so
+  // performStartMining can suppress the generic "Could Not Join Block" alert.
+  const serverVerifPendingRef = useRef(false);
 
   const showAchievementToast = (badgeId: string) => {
     const defs = AchievementService.getInstance().getDefinitions();
@@ -245,14 +248,14 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
         payload && payload.seed && payload.sig && typeof payload.day === 'number'
           ? { seed: payload.seed, sig: payload.sig, day: payload.day }
           : null;
+      serverVerifPendingRef.current = true;
       setVerificationSeed(seedPayload);
       setVerificationVisible(true);
-      // No pending continuation — user just gets their daily verification done;
-      // they'll tap the mining button again when ready.
-      pendingStartRef.current = null;
+      // Auto-start mining once the user passes the gate.
+      pendingStartRef.current = proceedToStart;
     });
     return () => sub.remove();
-  }, []);
+  }, [proceedToStart]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -567,6 +570,12 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
 
   const performStartMining = useCallback(async () => {
     const success = await miningService.startMining();
+    if (!success && serverVerifPendingRef.current) {
+      // Server triggered the verification gate — popup is already showing, no alert needed.
+      serverVerifPendingRef.current = false;
+      return;
+    }
+    serverVerifPendingRef.current = false;
     if (success) {
       setIsMining(true);
       isMiningRef.current = true;

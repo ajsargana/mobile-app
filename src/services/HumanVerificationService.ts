@@ -350,19 +350,21 @@ export class HumanVerificationService {
    *
    * Returns exactly 1 challenge drawn from any tier.
    */
-  pickChallenges(seedHex: string): ChallengeSpec[] {
+  pickChallenges(seedHex: string, attempt: number = 0): ChallengeSpec[] {
     if (!seedHex || seedHex.length < 8) {
       throw new Error('Invalid seed');
     }
-    const rng = makeXorshift32(seedHex);
+    // Seed-derived RNG is used only for challenge PARAMS (targetIndex, sequence,
+    // etc.) to keep them stable within a session.  Challenge TYPE is picked with
+    // Math.random() so every attempt/open gets a genuinely different challenge.
+    const rng = makeXorshift32(seedHex, attempt);
 
-    // 30 % chance of a face challenge; otherwise pick uniformly from all tiers
-    if (rng() < FACE_DAY_PROBABILITY) {
+    if (Math.random() < FACE_DAY_PROBABILITY) {
       return [this.specFor('face', rng)];
     }
 
     const pool: ChallengeId[] = ['shake', 'tilt', 'tap', 'sequence'];
-    const id = pool[Math.floor(rng() * pool.length)];
+    const id = pool[Math.floor(Math.random() * pool.length)];
     return [this.specFor(id, rng)];
   }
 
@@ -412,8 +414,9 @@ export async function getRandomNonce(): Promise<string> {
  * Tiny seedable RNG. Reads first 4 bytes of seed hex into a 32-bit state.
  * Output: float in [0, 1).
  */
-function makeXorshift32(seedHex: string): () => number {
-  let state = parseInt(seedHex.substring(0, 8), 16) >>> 0;
+function makeXorshift32(seedHex: string, attempt: number = 0): () => number {
+  // XOR the attempt into the initial state so each retry yields a different challenge.
+  let state = (parseInt(seedHex.substring(0, 8), 16) ^ (attempt * 0x9e3779b9)) >>> 0;
   if (state === 0) state = 0xdeadbeef;
   return function next() {
     state ^= state << 13;

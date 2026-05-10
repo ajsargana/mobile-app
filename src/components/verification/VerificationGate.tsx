@@ -43,6 +43,7 @@ export const VerificationGate: React.FC<Props> = ({ visible, seed, onPass, onCan
   const startedAtRef = useRef<number>(0);
   const passedIdsRef = useRef<ChallengeId[]>([]);
   const reRollCountRef = useRef(0);
+  const attemptCountRef = useRef(0);
 
   const svc = HumanVerificationService.getInstance();
 
@@ -67,7 +68,7 @@ export const VerificationGate: React.FC<Props> = ({ visible, seed, onPass, onCan
         if (cancelled) return;
 
         setSeedState(s);
-        const picks = svc.pickChallenges(s.seed);
+        const picks = svc.pickChallenges(s.seed, attemptCountRef.current);
         setChallenges(picks);
         passedIdsRef.current = [];
         startedAtRef.current = Date.now();
@@ -83,20 +84,22 @@ export const VerificationGate: React.FC<Props> = ({ visible, seed, onPass, onCan
     };
   }, [visible]);
 
-  // Reset internal state when modal closes
+  // Reset internal state when modal closes (attempt counter intentionally kept
+  // so each re-open shows a different challenge).
   useEffect(() => {
     if (!visible) {
       setPhase('loading');
       setChallenges([]);
       passedIdsRef.current = [];
       reRollCountRef.current = 0;
+      attemptCountRef.current += 1; // advance so next open is a fresh challenge
     }
   }, [visible]);
 
   const handleAllPass = useCallback(async () => {
     if (!seedState) {
       setPhase('error');
-      setErrorMsg('Missing seed');
+      setErrorMsg('Missing seed — please try again');
       return;
     }
     setPhase('attesting');
@@ -104,9 +107,16 @@ export const VerificationGate: React.FC<Props> = ({ visible, seed, onPass, onCan
       const ids = challenges.map((c) => c.id);
       const elapsed = Date.now() - startedAtRef.current;
       const nonce = await getRandomNonce();
-      await svc.attest(seedState, ids, nonce, elapsed);
+
+      // Race attest against a 15-second hard timeout so the modal never hangs
+      await Promise.race([
+        svc.attest(seedState, ids, nonce, elapsed),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Verification timed out — check your connection')), 15_000)
+        ),
+      ]);
+
       setPhase('done');
-      // Brief success state then close
       setTimeout(() => onPass(), 500);
     } catch (e: any) {
       console.warn('[VerificationGate] attest failed:', e);
@@ -156,7 +166,7 @@ export const VerificationGate: React.FC<Props> = ({ visible, seed, onPass, onCan
   const retry = useCallback(() => {
     setErrorMsg('');
     setPhase('loading');
-    // re-trigger init by toggling effect dependencies — easiest is to refetch directly
+    attemptCountRef.current += 1;
     (async () => {
       try {
         const cd = await svc.isInCooldown();
@@ -167,7 +177,7 @@ export const VerificationGate: React.FC<Props> = ({ visible, seed, onPass, onCan
         }
         const s = await svc.fetchDailySeed();
         setSeedState(s);
-        const picks = svc.pickChallenges(s.seed);
+        const picks = svc.pickChallenges(s.seed, attemptCountRef.current);
         setChallenges(picks);
         passedIdsRef.current = [];
         startedAtRef.current = Date.now();

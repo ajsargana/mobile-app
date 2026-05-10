@@ -281,6 +281,11 @@ export class MiningService {
           return false; // not an error — just waiting for next block
         }
 
+        // Verification-required: the event was already emitted in checkMiningCooldown,
+        // so the UI gate will open. Return false silently instead of throwing.
+        if (cooldownCheck.reason?.toLowerCase().includes('verification')) {
+          return false;
+        }
         throw new Error(cooldownCheck.reason || 'Mining cooldown active');
       }
 

@@ -13,8 +13,7 @@ interface Params {
   targetIndex: number;  // index into ICON_SET that the user must tap
 }
 
-const MIN_DECISION_MS = 500;
-const TIMEOUT_MS = 12_000;
+const TIMEOUT_MS = 30_000;
 
 export const TapPuzzleChallenge: React.FC<ChallengeProps> = ({ spec, onPass, onFail }) => {
   const { colors } = useTheme();
@@ -36,6 +35,7 @@ export const TapPuzzleChallenge: React.FC<ChallengeProps> = ({ spec, onPass, onF
   }, [params.gridSize, params.targetIndex, targetIcon]);
 
   const [tappedKey, setTappedKey] = useState<number | null>(null);
+  const [tapResult, setTapResult] = useState<'pass' | 'fail' | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -49,21 +49,16 @@ export const TapPuzzleChallenge: React.FC<ChallengeProps> = ({ spec, onPass, onF
 
   const handleTap = (cell: typeof cells[number]) => {
     if (completedRef.current) return;
+    completedRef.current = true;
     setTappedKey(cell.key);
-    const elapsed = Date.now() - startedAt.current;
-    if (elapsed < MIN_DECISION_MS) {
-      completedRef.current = true;
-      onFail('invalid', 'Tapped too fast');
-      return;
-    }
     if (cell.isTarget) {
-      completedRef.current = true;
+      setTapResult('pass');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      onPass();
+      setTimeout(() => onPass(), 350);
     } else {
-      completedRef.current = true;
+      setTapResult('fail');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      onFail('invalid', 'Wrong icon');
+      setTimeout(() => onFail('invalid', 'Wrong icon'), 350);
     }
   };
 
@@ -79,6 +74,20 @@ export const TapPuzzleChallenge: React.FC<ChallengeProps> = ({ spec, onPass, onF
         {cells.map((cell) => {
           const Icon = cell.Icon;
           const isTapped = tappedKey === cell.key;
+          const borderColor = isTapped && tapResult === 'pass'
+            ? '#22c55e'
+            : isTapped && tapResult === 'fail'
+              ? '#ef4444'
+              : isTapped
+                ? colors.accent || '#00f3ff'
+                : 'rgba(255,255,255,0.1)';
+          const bgColor = isTapped && tapResult === 'pass'
+            ? 'rgba(34,197,94,0.2)'
+            : isTapped && tapResult === 'fail'
+              ? 'rgba(239,68,68,0.2)'
+              : isTapped
+                ? 'rgba(0,243,255,0.1)'
+                : 'rgba(255,255,255,0.05)';
           return (
             <TouchableOpacity
               key={cell.key}
@@ -86,11 +95,7 @@ export const TapPuzzleChallenge: React.FC<ChallengeProps> = ({ spec, onPass, onF
               onPress={() => handleTap(cell)}
               style={[
                 styles.cell,
-                {
-                  width: `${100 / cols - 2}%`,
-                  borderColor: isTapped ? colors.accent || '#00f3ff' : 'rgba(255,255,255,0.1)',
-                  backgroundColor: isTapped ? 'rgba(0,243,255,0.1)' : 'rgba(255,255,255,0.05)',
-                },
+                { borderColor, backgroundColor: bgColor },
               ]}
             >
               <Icon size={28} color={colors.textPrimary} />
@@ -106,14 +111,15 @@ const styles = StyleSheet.create({
   wrap: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 12 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 6, textTransform: 'capitalize' },
   sub: { fontSize: 14, opacity: 0.7, marginBottom: 20 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
   cell: {
+    width: '22%',
     aspectRatio: 1,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '1%',
+    margin: '1.5%',
   },
 });
 
