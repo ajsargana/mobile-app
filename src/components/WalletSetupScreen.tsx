@@ -21,6 +21,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import ThemedCard from './ThemedCard';
 import { applyFontScaling } from '../utils/fontScaling';
+import { deviceKeystoreService } from '../lib/keystore/DeviceKeystoreService';
 
 interface WalletSetupScreenProps {
   navigation: any;
@@ -157,6 +158,13 @@ export const WalletSetupScreen: React.FC<WalletSetupScreenProps> = ({ navigation
 
         if (referralCode) {
           await AsyncStorage.removeItem('@aura50_pending_referral_code');
+        }
+
+        // Bind this device keypair to the account immediately after auth.
+        // Must complete before first mining attempt, so we await it here.
+        const regResult = await deviceKeystoreService.registerDevice(data.user.id);
+        if (!regResult.success) {
+          console.warn('⚠️ Device registration failed after auth:', regResult.error);
         }
       };
 

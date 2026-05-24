@@ -17,6 +17,7 @@ import { User, TrustLevel } from '../types';
 import config from '../config/environment';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemedCard from './ThemedCard';
+import { deviceKeystoreService } from '../lib/keystore/DeviceKeystoreService';
 
 interface WalletRestoreScreenProps {
   navigation: any;
@@ -147,6 +148,12 @@ export const WalletRestoreScreen: React.FC<WalletRestoreScreenProps> = ({ naviga
           console.log('✅ Wallet address synced to backend');
         } catch {
           console.warn('⚠️ Failed to sync wallet address (non-critical)');
+        }
+
+        // Bind this device keypair to the restored account immediately after auth.
+        const regResult = await deviceKeystoreService.registerDevice(data.user.id);
+        if (!regResult.success) {
+          console.warn('⚠️ Device registration failed after restore:', regResult.error);
         }
       };
 
