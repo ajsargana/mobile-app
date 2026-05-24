@@ -7,7 +7,7 @@ import { sha256 } from 'js-sha256';
 import config from '../config/environment';
 import NotificationService from './NotificationService';
 import StakingService from './StakingService';
-import { AttestationService } from '../lib/attestation';
+import { deviceKeystoreService } from '../lib/keystore/DeviceKeystoreService';
 
 /**
  * Emitted when the server returns 403 `requiresVerification: true` from
@@ -100,6 +100,7 @@ export class MiningService {
   private blockChangeListener: ((block: any) => void) | null = null; // WebSocket block-change handler
   private sessionHashCount: number = 0;   // Persistent counter across all concurrent mining loops
   private sessionShareCount: number = 0;  // Shares submitted in the current block (max 4)
+  private isSubmitting: boolean = false;  // Guard: prevents concurrent fire-and-forget submissions
   private _rateWindowHashes: number = 0;
   private _rateWindowStart: number = 0;
 
@@ -1075,6 +1076,12 @@ export class MiningService {
       return;
     }
 
+    if (this.isSubmitting) {
+      console.log('⏳ Share submission already in-flight — skipping duplicate');
+      return;
+    }
+
+    this.isSubmitting = true;
     try {
       const wallet = this.walletService.getCurrentAccount();
       const user = this.walletService.getUser();
@@ -1340,6 +1347,8 @@ export class MiningService {
 
     } catch (error) {
       console.error('Failed to submit mining share:', error);
+    } finally {
+      this.isSubmitting = false;
     }
   }
 
@@ -1428,10 +1437,13 @@ export class MiningService {
       if (token) {
         await AsyncStorage.setItem('@aura50_auth_token', token);
         console.log('✅ Auto-authenticated with backend');
-        // Bind device after fresh auth — keeps server's device-bind table current.
-        // Failures are non-fatal; subsequent mining calls will surface the real error.
-        AttestationService.bindCurrentDevice().catch((e) => {
-          console.warn('⚠️ Device bind after auto-auth failed:', e?.message ?? e);
+        // Register device after fresh auth — binds this OS keystore key to the account.
+        // Failures are non-fatal; server runs in soft-mode until DEVICE_KEYSTORE_ENFORCE=true.
+        const userId = await AsyncStorage.getItem('@aura50_user_id') ?? '';
+        deviceKeystoreService.registerDevice(userId).then((r) => {
+          if (!r.success) console.warn('⚠️ Device registration failed:', r.error);
+        }).catch((e) => {
+          console.warn('⚠️ Device registration error:', e?.message ?? e);
         });
       } else {
         console.error('❌ Could not obtain auth token — mining requires network + valid account');

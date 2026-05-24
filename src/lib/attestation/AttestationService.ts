@@ -100,20 +100,27 @@ export class AttestationService {
 
     const p = (async () => {
       const auth = await this.authHeader();
-      const res = await fetch(`${config.baseUrl}/api/attestation/nonce`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...auth },
-        body: JSON.stringify({ action }),
-      });
-      if (!res.ok) throw new Error(`Nonce request failed: HTTP ${res.status}`);
-      const data = await res.json();
-      if (!data?.success || !data?.nonce) throw new Error('Malformed nonce response');
-      return {
-        nonce: data.nonce,
-        signature: data.signature,
-        exp: data.exp,
-        action: data.action,
-      } as ServerNonce;
+      const nonceCtrl = new AbortController();
+      const nonceTimer = setTimeout(() => nonceCtrl.abort(), 10_000);
+      try {
+        const res = await fetch(`${config.baseUrl}/api/attestation/nonce`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...auth },
+          body: JSON.stringify({ action }),
+          signal: nonceCtrl.signal,
+        });
+        if (!res.ok) throw new Error(`Nonce request failed: HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data?.success || !data?.nonce) throw new Error('Malformed nonce response');
+        return {
+          nonce: data.nonce,
+          signature: data.signature,
+          exp: data.exp,
+          action: data.action,
+        } as ServerNonce;
+      } finally {
+        clearTimeout(nonceTimer);
+      }
     })();
 
     this.inflightNonce.set(action, p);

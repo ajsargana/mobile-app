@@ -23,7 +23,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { MiningService, VERIFICATION_REQUIRED_EVENT } from '../services/MiningService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
-import { NetworkService } from '../services/NetworkService';
+import { NetworkService, DEVICE_BLOCKED_EVENT } from '../services/NetworkService';
 import HumanVerificationService, { DailySeed } from '../services/HumanVerificationService';
 import VerificationGate from './verification/VerificationGate';
 import { applyFontScaling } from '../utils/fontScaling';
@@ -162,6 +162,12 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
   // Ref mirrors isMining so AppState callbacks always read the current value
   const isMiningRef     = useRef(false);
 
+  // ── Device switch cooldown ────────────────────────────────────────────────
+  const STORAGE_KEY_COOLDOWN_UNTIL = '@aura50_device_cooldown_until';
+  const [deviceCooldownUntil,       setDeviceCooldownUntil]       = useState<number | null>(null);
+  const [deviceRequiresReg,         setDeviceRequiresReg]         = useState(false);
+  const [cooldownSecondsLeft,       setCooldownSecondsLeft]       = useState(0);
+
   // ── Daily human-verification gate ────────────────────────────────────────
   const [verificationVisible, setVerificationVisible] = useState(false);
   const [verificationSeed, setVerificationSeed] = useState<DailySeed | null>(null);
@@ -256,6 +262,49 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     });
     return () => sub.remove();
   }, [proceedToStart]);
+
+  // Listen for device-blocked events emitted by NetworkService (cooldown or unregistered device)
+  useEffect(() => {
+    // Restore persisted cooldown on mount
+    AsyncStorage.getItem(STORAGE_KEY_COOLDOWN_UNTIL).then(val => {
+      if (!val || !mountedRef.current) return;
+      const until = parseInt(val, 10);
+      if (until > Date.now()) setDeviceCooldownUntil(until);
+    });
+
+    const sub = DeviceEventEmitter.addListener(DEVICE_BLOCKED_EVENT, (payload: any) => {
+      if (!mountedRef.current) return;
+      if (payload?.requiresDevice) {
+        setDeviceRequiresReg(true);
+        return;
+      }
+      if (payload?.cooldownMs && payload.cooldownMs > 0) {
+        const until = Date.now() + payload.cooldownMs;
+        setDeviceCooldownUntil(until);
+        AsyncStorage.setItem(STORAGE_KEY_COOLDOWN_UNTIL, String(until)).catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Live countdown tick — updates every second while cooldown is active
+  useEffect(() => {
+    if (!deviceCooldownUntil) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((deviceCooldownUntil - Date.now()) / 1000));
+      if (mountedRef.current) setCooldownSecondsLeft(remaining);
+      if (remaining === 0) {
+        setDeviceCooldownUntil(null);
+        AsyncStorage.removeItem(STORAGE_KEY_COOLDOWN_UNTIL).catch(() => {});
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [deviceCooldownUntil]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -552,6 +601,17 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
 
   // ── Guards ───────────────────────────────────────────────────────────────
   const canStartMining = useCallback((): boolean => {
+    if (deviceCooldownUntil && deviceCooldownUntil > Date.now()) {
+      Alert.alert(
+        'Account Switch Cooldown Active',
+        'You switched accounts recently. Mining is locked for 24 hours after switching accounts.'
+      );
+      return false;
+    }
+    if (deviceRequiresReg) {
+      Alert.alert('Device Not Registered', 'Your device is not registered with this account. Restarting the app may resolve this.');
+      return false;
+    }
     if (deviceMetrics.batteryLevel < 20 && !deviceMetrics.isCharging) {
       Alert.alert('Low Battery', 'Block participation is paused when battery is below 20% and not charging.');
       return false;
@@ -566,7 +626,7 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       return false;
     }
     return true;
-  }, [deviceMetrics, navigation]);
+  }, [deviceCooldownUntil, deviceRequiresReg, deviceMetrics, navigation]);
 
   const performStartMining = useCallback(async () => {
     const success = await miningService.startMining();
@@ -706,6 +766,16 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     labelTop:        isMining ? 'CONTRIBUTING' : 'READY TO FORGE',
   }), [deviceMetrics.batteryLevel, deviceMetrics.isCharging, dailyCount, dailyLimit, isMining, colors]);
 
+  const cooldownActive = !!deviceCooldownUntil && deviceCooldownUntil > Date.now();
+
+  const cooldownLabel = useMemo(() => {
+    if (!cooldownSecondsLeft) return '';
+    const h = Math.floor(cooldownSecondsLeft / 3600);
+    const m = Math.floor((cooldownSecondsLeft % 3600) / 60);
+    const s = cooldownSecondsLeft % 60;
+    return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  }, [cooldownSecondsLeft]);
+
   // ── Auto-stop mining when daily limit is reached ──────────────────────────
   useEffect(() => {
     if (limitReached && isMining) {
@@ -836,6 +906,33 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
           <View style={styles.warningRow}>
             <Ionicons name="warning-outline" size={14} color={colors.danger} />
             <Text style={[styles.warningText, { color: colors.danger }]}> Battery too low to mine</Text>
+          </View>
+        )}
+
+        {cooldownActive && (
+          <View style={[styles.cooldownCard, { borderColor: colors.danger }]}>
+            <View style={styles.cooldownHeader}>
+              <Ionicons name="lock-closed-outline" size={16} color={colors.danger} />
+              <Text style={[styles.cooldownTitle, { color: colors.danger }]}>Account Switch Cooldown Active</Text>
+            </View>
+            <Text style={[styles.cooldownBody, { color: colors.labelBottom }]}>
+              After switching accounts, mining is unavailable for 24 hours.
+            </Text>
+            <Text style={[styles.cooldownTimer, { color: colors.danger }]}>
+              Unlocks in {cooldownLabel}
+            </Text>
+          </View>
+        )}
+
+        {deviceRequiresReg && !cooldownActive && (
+          <View style={[styles.cooldownCard, { borderColor: colors.danger }]}>
+            <View style={styles.cooldownHeader}>
+              <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
+              <Text style={[styles.cooldownTitle, { color: colors.danger }]}>Device Not Registered</Text>
+            </View>
+            <Text style={[styles.cooldownBody, { color: colors.labelBottom }]}>
+              Your device needs to re-register. Restart the app to resolve this.
+            </Text>
           </View>
         )}
       </View>
@@ -1240,6 +1337,37 @@ const styles = applyFontScaling(StyleSheet.create({
     fontSize: 12,
     color: '#E74C3C',
     fontWeight: '600',
+  },
+
+  cooldownCard: {
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: 'rgba(231,76,60,0.08)',
+    gap: 5,
+  },
+  cooldownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  cooldownTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  cooldownBody: {
+    fontSize: 12,
+    lineHeight: 17,
+    opacity: 0.8,
+  },
+  cooldownTimer: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 2,
   },
 
   // Divider

@@ -4,9 +4,11 @@ import { DeviceEventEmitter } from 'react-native';
 import config from '../config/environment';
 import { P2PConnection, NetworkStats, Transaction, Block } from '../types';
 import { VERIFICATION_REQUIRED_EVENT } from './MiningService';
-import { AttestationService } from '../lib/attestation';
+import { deviceKeystoreService } from '../lib/keystore/DeviceKeystoreService';
 
-export const ATTESTATION_BLOCKED_EVENT = '@aura50/attestation_blocked';
+/** Emitted when the server rejects mining because the device budget is exhausted
+ *  or the account-switch cooldown is still active. */
+export const DEVICE_BLOCKED_EVENT = '@aura50/device_blocked';
 
 export class NetworkService {
   private static instance: NetworkService;
@@ -515,33 +517,35 @@ export class NetworkService {
       const authToken = await this.getAuthToken();
       const url = `${this.baseUrl}/api/blocks/submit-share`;
 
-      // Device attestation: produce a fresh per-share attestation envelope.
-      // On rooted devices / cooldown / low-trust the server will reject with
-      // code MINING_BLOCKED — we surface the structured reason via event so the
-      // mining UI can show a clear message.
-      let attestHeaders: Record<string, string> = {};
+      // Device keystore headers — prove this share comes from the registered device.
+      // Server validates signature, checks device budget, and enforces switch cooldown.
+      let deviceHeaders: Record<string, string> = {};
       try {
-        attestHeaders = await AttestationService.attestForAction('mining_submit');
+        const userId = await AsyncStorage.getItem('@aura50_user_id') ?? '';
+        deviceHeaders = await deviceKeystoreService.getDeviceHeaders(userId);
       } catch (e) {
-        console.warn('⚠️ Attestation produce failed (will let server decide):', e);
+        console.warn('⚠️ Device header generation failed (server will decide):', e);
       }
 
       console.log('🔄 Submitting mining share:', {
         url,
         hasToken: !!authToken,
-        attested: Object.keys(attestHeaders).length > 0,
+        hasDeviceKey: !!deviceHeaders['X-Device-Pubkey'],
         share: { ...share, hash: share.hash.substring(0, 16) + '...' }
       });
 
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 25_000);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`,
-          ...attestHeaders,
+          ...deviceHeaders,
         },
-        body: JSON.stringify(share)
-      });
+        body: JSON.stringify(share),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(fetchTimeout));
 
       console.log('📡 Mining share response:', {
         status: response.status,
@@ -588,13 +592,19 @@ export class NetworkService {
                 day: error.day ?? null,
               });
             }
-            // Device attestation rejection — propagate to mining UI so it can show
-            // cooldown countdown / lock message / rooted-device warning.
-            if (response.status === 403 && error?.code === 'MINING_BLOCKED') {
-              DeviceEventEmitter.emit(ATTESTATION_BLOCKED_EVENT, {
-                reason: error.reason,
-                meta: error.meta,
-                message: error.message,
+            // Device keystore rejections — surface to mining UI.
+            // 403 requiresDevice: device not registered, show registration prompt.
+            // 403 error contains cooldownMs: account-switch cooldown still active.
+            // 429 error contains cooldownMs: device epoch budget exhausted.
+            if (
+              (response.status === 403 && error?.requiresDevice) ||
+              (response.status === 403 && error?.cooldownMs) ||
+              (response.status === 429 && error?.error)
+            ) {
+              DeviceEventEmitter.emit(DEVICE_BLOCKED_EVENT, {
+                requiresDevice: error?.requiresDevice ?? false,
+                cooldownMs: error?.cooldownMs ?? null,
+                error: error?.error ?? error?.message ?? 'Device check failed',
               });
             }
             console.error('❌ Mining share rejected (JSON):', error);
@@ -680,9 +690,10 @@ export class NetworkService {
         if (token) {
           await AsyncStorage.setItem('@aura50_auth_token', token);
           console.log('✅ Re-authenticated successfully');
-          // Re-bind device after re-auth — fire-and-forget; failures don't block re-auth.
-          AttestationService.bindCurrentDevice().catch((e) => {
-            console.warn('⚠️ Device re-bind after reAuth failed:', e?.message ?? e);
+          // Re-register device after re-auth — fire-and-forget.
+          const reAuthUserId = await AsyncStorage.getItem('@aura50_user_id') ?? '';
+          deviceKeystoreService.registerDevice(reAuthUserId).catch((e) => {
+            console.warn('⚠️ Device re-register after reAuth failed:', e?.message ?? e);
           });
           return token;
         }
