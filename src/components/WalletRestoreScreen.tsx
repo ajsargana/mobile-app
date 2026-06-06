@@ -154,6 +154,10 @@ export const WalletRestoreScreen: React.FC<WalletRestoreScreenProps> = ({ naviga
         const regResult = await deviceKeystoreService.registerDevice(data.user.id);
         if (!regResult.success) {
           console.warn('⚠️ Device registration failed after restore:', regResult.error);
+          if (regResult.cooldownMs && regResult.cooldownMs > 0) {
+            const until = Date.now() + regResult.cooldownMs;
+            await AsyncStorage.setItem('@aura50_device_cooldown_until', String(until));
+          }
         }
       };
 

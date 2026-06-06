@@ -276,12 +276,30 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
       if (!mountedRef.current) return;
       if (payload?.requiresDevice) {
         setDeviceRequiresReg(true);
+        // Stop mining immediately — device is not registered
+        if (isMiningRef.current) {
+          miningService.stopMining().catch(() => {});
+          stopMiningKeepAwake();
+          setIsMining(false);
+          Alert.alert('Device Not Registered', 'Mining stopped. Your device is not registered with this account.');
+        }
         return;
       }
       if (payload?.cooldownMs && payload.cooldownMs > 0) {
         const until = Date.now() + payload.cooldownMs;
         setDeviceCooldownUntil(until);
         AsyncStorage.setItem(STORAGE_KEY_COOLDOWN_UNTIL, String(until)).catch(() => {});
+        // Stop mining immediately — cooldown is active
+        if (isMiningRef.current) {
+          miningService.stopMining().catch(() => {});
+          stopMiningKeepAwake();
+          setIsMining(false);
+          const h = Math.ceil(payload.cooldownMs / 3_600_000);
+          Alert.alert(
+            'Mining Paused — Cooldown Active',
+            `You switched accounts recently. Mining is locked for ${h}h after switching accounts.`
+          );
+        }
       }
     });
     return () => sub.remove();

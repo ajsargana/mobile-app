@@ -8,6 +8,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
 
+const AUTH_TOKEN_KEY = '@aura50_auth_token';
+
 export interface DeviceCapability {
   ramGB: number;
   cores: number;
@@ -117,6 +119,7 @@ export class CoordinatorClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await this.authHeader()),
         },
         body: JSON.stringify({
           validatorId: this.validatorId,
@@ -156,6 +159,7 @@ export class CoordinatorClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await this.authHeader()),
         },
         body: JSON.stringify({
           validatorId: this.validatorId,
@@ -195,6 +199,11 @@ export class CoordinatorClient {
   }
 
   // Private methods
+
+  private async authHeader(): Promise<Record<string, string>> {
+    const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
 
   /**
    * Initialize validator ID
@@ -295,6 +304,7 @@ export class CoordinatorClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await this.authHeader()),
         },
         body: JSON.stringify({
           validatorId: this.validatorId,
@@ -326,6 +336,7 @@ export class CoordinatorClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await this.authHeader()),
         },
         body: JSON.stringify({
           validatorId: this.validatorId,
@@ -367,6 +378,7 @@ export class CoordinatorClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await this.authHeader()),
         },
         body: JSON.stringify({
           validatorId: this.validatorId,

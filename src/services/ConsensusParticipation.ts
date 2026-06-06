@@ -285,10 +285,12 @@ export class ConsensusParticipation {
       }
 
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://62.84.187.126:5005';
+      const authToken = await AsyncStorage.getItem('@aura50_auth_token');
       const response = await fetch(`${apiUrl}/api/coordinator/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({
           validatorId: this.validatorId,

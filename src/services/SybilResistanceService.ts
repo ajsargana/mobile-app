@@ -7,7 +7,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
-import { AttestationService } from '../lib/attestation';
+import { deviceKeystoreService } from '../lib/keystore/DeviceKeystoreService';
 
 export interface DeviceAttestation {
   deviceId: string;
@@ -62,10 +62,9 @@ export class SybilResistanceService {
   }
 
   /**
-   * Perform device attestation. Delegates to AttestationService which uses
-   * Play Integrity (Android) / App Attest (iOS) and binds the device to the
-   * current account on the server. The local DeviceAttestation cache is kept
-   * for backwards compatibility with existing UI components (SybilScoreDisplay).
+   * Perform device attestation using DeviceKeystoreService (secp256k1 device identity).
+   * Registers the device with the server and populates the local DeviceAttestation
+   * cache used by SybilScoreDisplay and scoreDeviceAttestation().
    */
   private async performDeviceAttestation(): Promise<void> {
     try {
@@ -73,29 +72,21 @@ export class SybilResistanceService {
       const isRealDevice = !(await DeviceInfo.isEmulator());
       const platform = ((await (DeviceInfo as any).getPlatform?.()) ?? Platform.OS) as 'ios' | 'android';
 
-      const attestation = AttestationService;
-      const status = await attestation.fetchStatus().catch(() => null);
+      const userId = await AsyncStorage.getItem('@aura50_user_id');
+      const deviceAddress = await deviceKeystoreService.getDeviceAddress().catch(() => null);
 
-      // If never bound, attempt the bind now. The server will reject if the user
-      // is not authenticated (fine — the mining-time auto-auth path will retry).
-      let bindOutcome: { code?: string; kind?: string; trustScore?: number } | null = null;
-      if (!status || !status.bound) {
-        bindOutcome = await attestation.bindCurrentDevice().catch((e) => ({
-          code: 'BIND_FAILED',
-          kind: undefined,
-          message: String(e),
-        }) as any);
+      let registerSuccess = false;
+      if (userId && deviceAddress) {
+        const result = await deviceKeystoreService.registerDevice(userId).catch(() => ({ success: false as const }));
+        registerSuccess = result.success;
       }
 
-      const verified =
-        attestation.isNativeAvailable() &&
-        isRealDevice &&
-        (status?.bound === true || bindOutcome?.kind === 'first_bind' || bindOutcome?.kind === 'same_account');
+      const verified = isRealDevice && registerSuccess;
 
       this.deviceAttestation = {
         deviceId,
         isRealDevice,
-        attestationToken: bindOutcome?.code ?? status?.platform ?? 'pending',
+        attestationToken: deviceAddress ?? 'pending',
         platform,
         verified,
         timestamp: Date.now(),
@@ -104,10 +95,7 @@ export class SybilResistanceService {
       await AsyncStorage.setItem('@aura50_device_attestation', JSON.stringify(this.deviceAttestation));
 
       if (!isRealDevice) {
-        console.warn('⚠️ Emulator detected — mining will be blocked by server attestation gate');
-      }
-      if (!attestation.isNativeAvailable()) {
-        console.warn('⚠️ Native attestation module unavailable — server must be in mock mode');
+        console.warn('⚠️ Emulator detected — mining will be blocked by server device gate');
       }
     } catch (error) {
       console.error('Error performing device attestation:', error);
