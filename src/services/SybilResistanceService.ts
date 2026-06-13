@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 import { deviceKeystoreService } from '../lib/keystore/DeviceKeystoreService';
+import config from '../config/environment';
 
 export interface DeviceAttestation {
   deviceId: string;
@@ -249,25 +250,39 @@ export class SybilResistanceService {
   /**
    * Score account age (10% weight)
    */
+  private _accountAgeCache: { score: number; expiresAt: number } | null = null;
+
   private async scoreAccountAge(): Promise<number> {
+    // Return cached value if still fresh (5 min TTL) — avoids one HTTP round-trip per sybil calc
+    if (this._accountAgeCache && Date.now() < this._accountAgeCache.expiresAt) {
+      return this._accountAgeCache.score;
+    }
+    try {
+      // Prefer server-authoritative score — avoids the always-zero local estimate
+      // caused by @aura50_user_created never being written during auth flows.
+      const token = await AsyncStorage.getItem('@aura50_auth_token');
+      if (token) {
+        const resp = await fetch(`${config.baseUrl}/api/mobile/sybil-score`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const score = typeof data?.factors?.accountAge === 'number' ? data.factors.accountAge : 0;
+          this._accountAgeCache = { score, expiresAt: Date.now() + 5 * 60 * 1000 };
+          return score;
+        }
+      }
+    } catch { /* fallback below */ }
+
     try {
       const userCreated = await AsyncStorage.getItem('@aura50_user_created');
-
-      if (!userCreated) {
-        return 0;
-      }
-
-      const createdTime = parseInt(userCreated);
-      const age = Date.now() - createdTime;
-      const daysSinceCreation = age / (24 * 60 * 60 * 1000);
-
-      // Progressive trust over time
-      if (daysSinceCreation >= 365) return 100; // 1 year+
-      if (daysSinceCreation >= 90) return 75;   // 3 months+
-      if (daysSinceCreation >= 30) return 50;   // 1 month+
-      if (daysSinceCreation >= 7) return 25;    // 1 week+
-
-      return 0; // Brand new account
+      if (!userCreated) return 0;
+      const days = (Date.now() - parseInt(userCreated)) / 86_400_000;
+      if (days >= 365) return 100;
+      if (days >= 90) return 75;
+      if (days >= 30) return 50;
+      if (days >= 7) return 25;
+      return 0;
     } catch {
       return 0;
     }

@@ -848,8 +848,8 @@ export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps)
             />
             <Text style={[styles.stakeHintText, { color: userBalance >= 10 ? '#10B981' : '#EF4444' }]}>
               {userBalance >= 10
-                ? `Ready to invite · ${userBalance.toFixed(2)} A50 available (10 A50 will be staked)`
-                : `Need 10 A50 coins to stake for invite. Current balance: ${userBalance.toFixed(2)} A50`}
+                ? `Ready to invite · ${userBalance.toFixed(2)} A50 available · a 10 A50 bond is locked once and returned after 90 days`
+                : `You need 10 A50 to unlock invites. Earn it by mining, or receive A50 from another user. Current balance: ${userBalance.toFixed(2)} A50`}
             </Text>
           </View>
         )}
@@ -891,7 +891,7 @@ export function LeaderboardScreen({ navigation, route }: LeaderboardScreenProps)
         }]}>
           <Ionicons name="shield-outline" size={14} color={colors.textMuted} />
           <Text style={[styles.securityNoteText, { color: colors.textMuted }]}>
-            Security Circles prevent fake accounts — only real people can join the AURA50 network.
+            Only invite real people you know and who vouch for you. Fake or inactive invites can cost you your 10 A50 bond and put your account at risk.
           </Text>
         </View>
       </View>

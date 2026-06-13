@@ -148,6 +148,11 @@ export const API_ENDPOINTS = {
   stakingUnstake: '/api/staking/unstake',
   stakingQuery: '/api/staking',
 
+  // Launch phases (progressive tasks + 6-month wallet lock)
+  phasesCurrent: '/api/phases/current',
+  phasesLockStatus: '/api/phases/lock-status',
+  phasesUnlockInvites: '/api/phases/unlock-invites',
+
   // AMM / DEX (contracts API)
   contractsCall: '/api/contracts',
   contractsState: '/api/contracts',

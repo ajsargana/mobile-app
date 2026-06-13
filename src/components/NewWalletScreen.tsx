@@ -36,6 +36,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import ThemedCard from './ThemedCard';
 import { StakingPill } from './StakingPill';
 import { applyFontScaling } from '../utils/fontScaling';
+import PhaseTaskService, { CurrentTask, LockStatus } from '../services/PhaseTaskService';
+import { LockStatusCard, CurrentTaskCard, LaunchLockModal } from './LaunchPhaseCards';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const COINS_KEY      = '@aura50_market_coins';
@@ -140,6 +142,12 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
 
   // General
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Launch phases (current task + send-lock status + explainer modal)
+  const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null);
+  const [lockStatus, setLockStatus]   = useState<LockStatus | null>(null);
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const sendLocked = !!lockStatus?.locked;
 
   // Achievements
   const [achievementsOpen,  setAchievementsOpen]  = useState(false);
@@ -388,9 +396,21 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
     setTotalAchievements(all.length);
   }, []);
 
+  const loadPhases = useCallback(async () => {
+    const svc = PhaseTaskService.getInstance();
+    const [task, lock] = await Promise.all([
+      svc.getCurrentTask().catch(() => null),
+      svc.getLockStatus().catch(() => null),
+    ]);
+    if (mountedRef.current) {
+      setCurrentTask(task);
+      setLockStatus(lock);
+    }
+  }, []);
+
   const loadAllData = useCallback(async () => {
-    await Promise.all([loadWallet(), loadProfile(), loadAchievements()]);
-  }, [loadAchievements]);
+    await Promise.all([loadWallet(), loadProfile(), loadAchievements(), loadPhases()]);
+  }, [loadAchievements, loadPhases]);
 
   // ── Profile ─────────────────────────────────────────────────────────────────
   const loadProfile = useCallback(async () => {
@@ -544,6 +564,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   useFocusEffect(useCallback(() => {
     loadProfile();
     loadAchievements();
+    loadPhases();
     NotificationService.getInstance().getUnreadCount().then(unread => {
       setNotificationCount(unread);
     });
@@ -578,7 +599,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         }
       });
     }
-  }, [loadProfile, loadAchievements, advanceOnboarding]));
+  }, [loadProfile, loadAchievements, loadPhases, advanceOnboarding]));
 
   // ── Refresh ─────────────────────────────────────────────────────────────────
   const onRefresh = useCallback(async () => {
@@ -683,8 +704,17 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
             </View>
           </View>
 
-          {/* Balance + eye inline */}
+          {/* Balance + (lock) + eye inline */}
           <View style={styles.balanceRow}>
+            {sendLocked && (
+              <TouchableOpacity
+                onPress={() => setLockModalOpen(true)}
+                style={styles.lockBadge}
+                accessibilityLabel="Transfers locked — tap for details"
+              >
+                <Ionicons name="lock-closed" size={15} color="#FFF" />
+              </TouchableOpacity>
+            )}
             <Text style={styles.balanceText} adjustsFontSizeToFit numberOfLines={1}>
               {showBalance ? formatBalance(balance) : '****.****.**'}
             </Text>
@@ -722,6 +752,15 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         </LinearGradient>
       </View>
 
+      {/* ── Launch phase: 6-month lock status (auto-hides at unlock) ── */}
+      <LockStatusCard lock={lockStatus} onPress={() => setLockModalOpen(true)} />
+
+      {/* ── Launch phase: current task (server reveals only the next one) ── */}
+      <CurrentTaskCard
+        task={currentTask}
+        onPress={() => navigation.navigate('Leaderboard', { scrollToInvite: true })}
+      />
+
       {/* ── Capsule Action Buttons (3 only: Stake, Send, Receive) ── */}
       <View style={styles.actionRow}>
         {/* Stake Button */}
@@ -733,7 +772,9 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           { label: t('home.send'),    icon: 'arrow-up-circle-outline',   color: colors.sendColor,    bg: colors.sendBg,    route: 'SendTransaction' },
           { label: t('home.receive'), icon: 'arrow-down-circle-outline',  color: colors.receiveColor, bg: colors.receiveBg, route: 'ReceiveTransaction' },
         ].map(({ label, icon, color, bg, route }) => {
-          const btnRef = label === 'Send' ? sendBtnRef : label === 'Receive' ? receiveBtnRef : null;
+          const isSend = route === 'SendTransaction';
+          const btnRef = isSend ? sendBtnRef : route === 'ReceiveTransaction' ? receiveBtnRef : null;
+          const lockSend = isSend && sendLocked;
           return (
             <View ref={btnRef} key={label} style={{ flex: 1 }}>
               <TouchableOpacity
@@ -742,14 +783,17 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
                   borderColor: colors.cardBorder,
                 }]}
                 onPress={() => {
-                  if ((label === 'Send' || label === 'Receive') && txStep >= 0 && txStep < 2) {
+                  // While transfers are locked, the Send button explains why
+                  // instead of opening the (server-rejected) send flow.
+                  if (lockSend) { setLockModalOpen(true); return; }
+                  if ((isSend || route === 'ReceiveTransaction') && txStep >= 0 && txStep < 2) {
                     waitingForTxReturn.current = true;
                   }
                   navigation.navigate(route);
                 }}
               >
-                <Ionicons name={icon as any} size={18} color={color} />
-                <Text style={[styles.capsuleLabel, { color }]}>{label}</Text>
+                <Ionicons name={(lockSend ? 'lock-closed-outline' : icon) as any} size={18} color={lockSend ? colors.textMuted : color} />
+                <Text style={[styles.capsuleLabel, { color: lockSend ? colors.textMuted : color }]}>{label}</Text>
               </TouchableOpacity>
             </View>
           );
@@ -976,6 +1020,14 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
         </TouchableOpacity>
       </Modal>
     </ScrollView>
+
+    {/* ── Launch send-lock explainer (hero lock icon + Send button) ── */}
+    <LaunchLockModal
+      visible={lockModalOpen}
+      lock={lockStatus}
+      onClose={() => setLockModalOpen(false)}
+      onInvite={() => navigation.navigate('Leaderboard', { scrollToInvite: true })}
+    />
 
     {/* ════════════════════════════════════════════════════════════════
         ONBOARDING MODALS (steps 1-4 live on this screen)
@@ -1303,6 +1355,7 @@ const styles = applyFontScaling(StyleSheet.create({
   // Balance
   balanceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   balanceText: { color: '#FFF', fontSize: 28, fontWeight: '800', flex: 1, letterSpacing: 0.5 },
+  lockBadge: { marginRight: 8, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(245,158,11,0.85)', justifyContent: 'center', alignItems: 'center' },
   eyeBtn: { marginLeft: 8, padding: 5, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 14 },
   balanceCurrency: { color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 10 },
   cardAddress: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: 'monospace', letterSpacing: 0.5, marginBottom: 16 },

@@ -446,6 +446,16 @@ export class EnhancedWalletService {
           if (profileData.totalMined !== undefined) {
             await AsyncStorage.setItem('@aura50_total_mined', profileData.totalMined.toString());
           }
+          // Cache lockedStakeBalance so StakingService can compute correct available balance
+          if (profileData.lockedStakeBalance !== undefined) {
+            (this.user as any).lockedStakeBalance = profileData.lockedStakeBalance.toString();
+          }
+        }
+
+        // Also persist lockedStakeBalance on the current HD account object
+        const account = this.getCurrentAccount();
+        if (account && profileData.lockedStakeBalance !== undefined) {
+          (account as any).lockedStakeBalance = profileData.lockedStakeBalance.toString();
         }
 
         return { success: true, balance: newBalance };

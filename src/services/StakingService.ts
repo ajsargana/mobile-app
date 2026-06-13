@@ -301,9 +301,13 @@ export class StakingService {
   getAvailableBalanceSync(): number {
     const walletService = EnhancedWalletService.getInstance();
     const account = walletService.getCurrentAccount();
-    const total  = account ? parseFloat(account.balance) : 0;
-    const locked = this.activeStake?.lockedAmount ?? 0;
-    return Math.max(0, total - locked);
+    // account.balance already excludes the mining-boost stake — it was deducted
+    // when the stake tx was placed, so subtracting activeStake.lockedAmount here
+    // would double-count the lock.
+    const total = account ? parseFloat(account.balance) : 0;
+    // Security-circle stake — read from cached server value on the account object
+    const circleLocked = parseFloat((account as any)?.lockedStakeBalance ?? '0');
+    return Math.max(0, total - circleLocked);
   }
 
   preview(amount: number, lockDays: number): BoostPreview {

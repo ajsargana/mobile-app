@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,174 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import Svg, { Polyline, Line, Circle, Defs, LinearGradient as SvgGrad, Stop, Path } from 'react-native-svg';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemedCard from './ThemedCard';
 import AMMService, { type PoolReserves, type SwapQuote } from '../services/AMMService';
 import { EnhancedWalletService } from '../services/EnhancedWalletService';
+
+const { width: SW } = Dimensions.get('window');
+const CHART_W = SW - 64;
+const CHART_H = 120;
+const PAD = { l: 4, r: 4, t: 10, b: 10 };
+
+interface PricePoint { price: number; ts: number }
+
+// ── Interactive price chart ───────────────────────────────────────────────────
+const PriceChart: React.FC<{
+  history: PricePoint[];
+  accent: string;
+  textColor: string;
+  mutedColor: string;
+  token0: string;
+  token1: string;
+}> = ({ history, accent, textColor, mutedColor, token0, token1 }) => {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const innerW = CHART_W - PAD.l - PAD.r;
+  const innerH = CHART_H - PAD.t - PAD.b;
+
+  const prices = history.map(p => p.price);
+  const minP = Math.min(...prices);
+  const maxP = Math.max(...prices);
+  const range = maxP - minP || minP * 0.01 || 0.0001;
+
+  const pts = history.map((p, i) => {
+    const x = PAD.l + (i / Math.max(history.length - 1, 1)) * innerW;
+    const y = PAD.t + innerH - ((p.price - minP) / range) * innerH;
+    return { x, y, ...p };
+  });
+
+  const polyPoints = pts.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+
+  // Area fill path
+  const areaPath = pts.length > 1
+    ? `M${pts[0].x.toFixed(2)},${PAD.t + innerH} ` +
+      pts.map(p => `L${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ') +
+      ` L${pts[pts.length - 1].x.toFixed(2)},${PAD.t + innerH} Z`
+    : '';
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      const localX = e.nativeEvent.locationX;
+      const idx = Math.round((localX - PAD.l) / innerW * (history.length - 1));
+      setSelectedIdx(Math.max(0, Math.min(history.length - 1, idx)));
+    },
+    onPanResponderMove: (e) => {
+      const localX = e.nativeEvent.locationX;
+      const idx = Math.round((localX - PAD.l) / innerW * (history.length - 1));
+      setSelectedIdx(Math.max(0, Math.min(history.length - 1, idx)));
+    },
+    onPanResponderRelease: () => setTimeout(() => setSelectedIdx(null), 1500),
+  }), [history.length, innerW]);
+
+  const sel = selectedIdx !== null ? pts[selectedIdx] : null;
+  const currentPrice = history.length > 0 ? history[history.length - 1].price : 0;
+  const firstPrice = history.length > 0 ? history[0].price : 0;
+  const pct = firstPrice > 0 ? ((currentPrice - firstPrice) / firstPrice) * 100 : 0;
+  const isUp = pct >= 0;
+
+  return (
+    <View style={{ marginTop: 4 }}>
+      {/* Header row */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 6 }}>
+        <View>
+          <Text style={{ fontSize: 11, color: mutedColor, fontWeight: '500' }}>
+            {sel ? new Date(sel.ts).toLocaleTimeString() : `${token0} / ${token1}`}
+          </Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: textColor }}>
+            {(sel ? sel.price : currentPrice).toFixed(6)}
+          </Text>
+        </View>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          backgroundColor: isUp ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+          borderRadius: 8,
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+        }}>
+          <Ionicons name={isUp ? 'trending-up' : 'trending-down'} size={14} color={isUp ? '#22c55e' : '#ef4444'} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: isUp ? '#22c55e' : '#ef4444' }}>
+            {isUp ? '+' : ''}{pct.toFixed(2)}%
+          </Text>
+        </View>
+      </View>
+
+      {/* SVG chart */}
+      <View {...panResponder.panHandlers} style={{ borderRadius: 12, overflow: 'hidden' }}>
+        <Svg width={CHART_W} height={CHART_H}>
+          <Defs>
+            <SvgGrad id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={isUp ? '#22c55e' : '#ef4444'} stopOpacity={0.3} />
+              <Stop offset="100%" stopColor={isUp ? '#22c55e' : '#ef4444'} stopOpacity={0.02} />
+            </SvgGrad>
+          </Defs>
+          {/* Grid lines */}
+          {[0.25, 0.5, 0.75].map(f => (
+            <Line
+              key={f}
+              x1={PAD.l} y1={PAD.t + innerH * f}
+              x2={PAD.l + innerW} y2={PAD.t + innerH * f}
+              stroke="rgba(128,128,128,0.12)"
+              strokeWidth="1"
+              strokeDasharray="3 5"
+            />
+          ))}
+          {/* Area fill */}
+          {areaPath && <Path d={areaPath} fill="url(#areaGrad)" />}
+          {/* Price line */}
+          {pts.length > 1 && (
+            <Polyline
+              points={polyPoints}
+              fill="none"
+              stroke={isUp ? '#22c55e' : '#ef4444'}
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          )}
+          {/* Selection crosshair */}
+          {sel && (
+            <>
+              <Line
+                x1={sel.x} y1={PAD.t}
+                x2={sel.x} y2={PAD.t + innerH}
+                stroke="rgba(255,255,255,0.35)"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+              />
+              <Circle cx={sel.x} cy={sel.y} r={5} fill={isUp ? '#22c55e' : '#ef4444'} />
+              <Circle cx={sel.x} cy={sel.y} r={9} fill={isUp ? '#22c55e' : '#ef4444'} fillOpacity={0.25} />
+            </>
+          )}
+          {/* Current price dot */}
+          {!sel && pts.length > 0 && (
+            <>
+              <Circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={4} fill={isUp ? '#22c55e' : '#ef4444'} />
+              <Circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={8} fill={isUp ? '#22c55e' : '#ef4444'} fillOpacity={0.2} />
+            </>
+          )}
+        </Svg>
+      </View>
+
+      {/* Min/max labels */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <Text style={{ fontSize: 10, color: mutedColor }}>low {minP.toFixed(6)}</Text>
+        <Text style={{ fontSize: 10, color: mutedColor }}>high {maxP.toFixed(6)}</Text>
+      </View>
+    </View>
+  );
+};
 
 interface Props {
   navigation: any;
@@ -44,13 +203,25 @@ export function SwapScreen({ navigation }: Props) {
   const [slippage, setSlippage]       = useState(0.5); // %
   const [pendingTx, setPendingTx]     = useState<string | null>(null);
   const [configured, setConfigured]   = useState(amm.isConfigured());
+  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
+  const [showChart, setShowChart]       = useState(true);
 
-  const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flipAnim   = useRef(new Animated.Value(0)).current;
+  const quoteTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const priceTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const flipAnim     = useRef(new Animated.Value(0)).current;
 
   const walletAddress = EnhancedWalletService.getInstance().getCurrentAccount()?.address ?? '';
 
   // ── Load pool data ──────────────────────────────────────────────────────────
+
+  const snapshotPrice = useCallback((res: PoolReserves) => {
+    if (res.reserve0 <= 0) return;
+    const price = res.reserve1 / res.reserve0;
+    setPriceHistory(prev => {
+      const next = [...prev, { price, ts: Date.now() }];
+      return next.length > 120 ? next.slice(-120) : next;
+    });
+  }, []);
 
   const loadPool = useCallback(async () => {
     setConfigured(amm.isConfigured());
@@ -62,12 +233,32 @@ export function SwapScreen({ navigation }: Props) {
       ]);
       setReserves(res);
       setLpBalance(lp);
+      snapshotPrice(res);
     } catch {
       // Pool unreachable — show last cached state
     }
-  }, [walletAddress]);
+  }, [walletAddress, snapshotPrice]);
 
-  useFocusEffect(useCallback(() => { loadPool(); }, [loadPool]));
+  // Live price polling — 3s interval; uses cached reserves when still fresh (< 30s),
+  // bypasses cache only on the first poll after cache expires to avoid RPC spam.
+  const startPricePolling = useCallback(() => {
+    if (priceTimer.current) clearInterval(priceTimer.current);
+    if (!amm.isConfigured()) return;
+    priceTimer.current = setInterval(async () => {
+      try {
+        const res = await amm.getReserves(); // respects 30s cache; no forceRefresh
+        setReserves(res);
+        snapshotPrice(res);
+      } catch { /* keep last */ }
+    }, 3000);
+  }, [snapshotPrice]);
+
+  useFocusEffect(useCallback(() => {
+    loadPool().then(startPricePolling);
+    return () => {
+      if (priceTimer.current) clearInterval(priceTimer.current);
+    };
+  }, [loadPool, startPricePolling]));
 
   // ── Live quote ──────────────────────────────────────────────────────────────
 
@@ -185,6 +376,32 @@ export function SwapScreen({ navigation }: Props) {
           contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          {/* ── Live price chart ── */}
+          {reserves && priceHistory.length > 1 && (
+            <ThemedCard style={s.statsCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Live Market</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' }} />
+                  <Text style={{ fontSize: 10, color: colors.textMuted }}>2s updates</Text>
+                  <TouchableOpacity onPress={() => setShowChart(v => !v)} style={{ marginLeft: 8 }}>
+                    <Ionicons name={showChart ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {showChart && (
+                <PriceChart
+                  history={priceHistory}
+                  accent={colors.accent}
+                  textColor={colors.textPrimary}
+                  mutedColor={colors.textMuted}
+                  token0={reserves.token0}
+                  token1={reserves.token1}
+                />
+              )}
+            </ThemedCard>
+          )}
+
           {/* Pool stats */}
           {reserves && (
             <ThemedCard style={s.statsCard}>
