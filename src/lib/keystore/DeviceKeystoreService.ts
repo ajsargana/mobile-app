@@ -31,6 +31,9 @@ import attestation, { IS_NATIVE_MODULE_AVAILABLE } from '../attestation/DeviceAt
 const SECURE_KEY_DEVICE_PRIVKEY = 'aura50_device_privkey_v1';
 const STORAGE_KEY_DEVICE_ADDRESS = '@aura50_device_address_v1';
 const STORAGE_KEY_AUTH_TOKEN     = '@aura50_auth_token';
+const STORAGE_KEY_USER_ID        = '@aura50_user_id';
+const STORAGE_KEY_AUTH_EMAIL     = '@aura50_auth_email';
+const STORAGE_KEY_AUTH_PASS      = '@aura50_auth_pass';
 const EPOCH_DURATION_MS = 60_000; // must match server
 
 export interface DeviceHeaders {
@@ -93,15 +96,76 @@ class DeviceKeystoreService {
   // ── Registration ───────────────────────────────────────────────────────────
 
   /**
-   * Bind this device to the given userId on the server.
-   * Call this after every login and after every account switch.
+   * Ensure we have a *real* backend session (JWT + server userId), self-healing
+   * out of "offline mode" if possible.
+   *
+   * device/register binds a device key to a server account, so it legitimately
+   * needs to prove which account (the JWT). The offline fallback in
+   * WalletSetupScreen stores `@aura50_user_id` = the wallet ADDRESS (0x…) and no
+   * token — a stale non-session that produced the confusing tokenless 401s.
+   *
+   * Fast path: valid token + a real (non-0x) userId already present.
+   * Recovery : re-authenticate from stored credentials and refresh both.
+   * Returns null when no session can be established (caller should skip cleanly).
    */
-  async registerDevice(userId: string): Promise<RegisterResult> {
+  private async ensureBackendSession(): Promise<{ token: string; userId: string } | null> {
+    const token  = await AsyncStorage.getItem(STORAGE_KEY_AUTH_TOKEN);
+    const userId = await AsyncStorage.getItem(STORAGE_KEY_USER_ID);
+    // A real server userId is a bare hex id; an offline placeholder is a 0x address.
+    if (token && userId && !userId.startsWith('0x')) {
+      return { token, userId };
+    }
+
+    // Offline-mode / expired-token recovery: silently re-auth from stored creds.
+    const email = await AsyncStorage.getItem(STORAGE_KEY_AUTH_EMAIL);
+    const pass  = await AsyncStorage.getItem(STORAGE_KEY_AUTH_PASS);
+    if (!email || !pass) {
+      console.log('ℹ️ Device registration skipped — no active session (sign in first).');
+      return null;
+    }
     try {
+      const res = await fetch(`${config.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass }),
+      });
+      if (!res.ok) {
+        console.warn('⚠️ Silent re-auth failed:', res.status);
+        return null;
+      }
+      const data = await res.json();
+      if (!data?.token || !data?.user?.id) return null;
+      await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, data.token);
+      await AsyncStorage.setItem(STORAGE_KEY_USER_ID, data.user.id);
+      console.log('🔄 Recovered backend session via silent re-auth.');
+      return { token: data.token, userId: data.user.id };
+    } catch (e: any) {
+      console.warn('⚠️ Silent re-auth error:', e?.message ?? String(e));
+      return null;
+    }
+  }
+
+  /**
+   * Bind this device to the caller's account on the server.
+   * Call this after every login and after every account switch.
+   *
+   * `userId` is optional and only a hint — the authoritative id comes from the
+   * verified backend session, so a stale/offline id can never bind the device to
+   * the wrong (or a non-existent) account. If no session can be established the
+   * call is skipped cleanly rather than firing a doomed tokenless request.
+   */
+  async registerDevice(userId?: string): Promise<RegisterResult> {
+    try {
+      const session = await this.ensureBackendSession();
+      if (!session) {
+        return { success: false, error: 'not_authenticated' };
+      }
+      const effectiveUserId = session.userId;
+
       const wallet = await this.getOrCreateWallet();
       const timestamp = Date.now();
       const deviceAddress = wallet.address.toLowerCase();
-      const message = `register:${userId}:${deviceAddress}:${timestamp}`;
+      const message = `register:${effectiveUserId}:${deviceAddress}:${timestamp}`;
       const signature = await wallet.signMessage(message);
 
       // Optional hardware attestation (Android Key Attestation). FULLY
@@ -110,7 +174,7 @@ class DeviceKeystoreService {
       // fail-closes to tier 'none'. Registration + mining never break on this.
       const attestationBody = await this.tryGatherAttestation(message);
 
-      const authToken = await AsyncStorage.getItem(STORAGE_KEY_AUTH_TOKEN);
+      const authToken = session.token;
       const res = await fetch(`${config.baseUrl}/api/device/register`, {
         method: 'POST',
         headers: {
@@ -138,7 +202,7 @@ class DeviceKeystoreService {
         };
       }
 
-      console.log('✅ Device registered:', wallet.address.substring(0, 12), '→ user', userId.substring(0, 8));
+      console.log('✅ Device registered:', wallet.address.substring(0, 12), '→ user', effectiveUserId.substring(0, 8));
       return { success: true, deviceAddress: wallet.address };
     } catch (err: any) {
       console.error('DeviceKeystoreService.registerDevice error:', err);
