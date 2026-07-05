@@ -116,31 +116,106 @@ class DeviceKeystoreService {
       return { token, userId };
     }
 
-    // Offline-mode / expired-token recovery: silently re-auth from stored creds.
-    const email = await AsyncStorage.getItem(STORAGE_KEY_AUTH_EMAIL);
-    const pass  = await AsyncStorage.getItem(STORAGE_KEY_AUTH_PASS);
+    // Recover or establish a session. SCHEDULING FIX: backend auth used to run
+    // ONLY inside WalletSetup/WalletRestore (first-ever setup), so any later
+    // launch (APK update, reinstall over kept data, offline fallback) reached
+    // device-register with no session. Credentials are DETERMINISTIC — derived
+    // from the wallet (same formula as WalletSetupScreen) — so the session can
+    // be rebuilt here, exactly when it's needed, with no user input.
+    let email = await AsyncStorage.getItem(STORAGE_KEY_AUTH_EMAIL);
+    let pass  = await AsyncStorage.getItem(STORAGE_KEY_AUTH_PASS);
     if (!email || !pass) {
-      console.log('ℹ️ Device registration skipped — no active session (sign in first).');
+      const derived = await this.deriveWalletCredentials();
+      if (derived) { email = derived.email; pass = derived.pass; }
+    }
+    if (!email || !pass) {
+      console.log('ℹ️ Device registration skipped — no session and no wallet to derive one from.');
       return null;
     }
+    return this.loginOrRegisterAccount(email, pass);
+  }
+
+  /**
+   * Rebuild the deterministic backend credentials from the wallet. MUST match
+   * WalletSetupScreen: email = `${address}@aura50.local`,
+   * password = `A1${privateKey.substring(0, 30)}`.
+   * Lazy require avoids a module cycle with the wallet service.
+   */
+  private async deriveWalletCredentials(): Promise<{ email: string; pass: string } | null> {
     try {
-      const res = await fetch(`${config.baseUrl}/api/auth/login`, {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { EnhancedWalletService } = require('../../services/EnhancedWalletService');
+      const ws = EnhancedWalletService.getInstance();
+      let acct = ws.getCurrentAccount?.();
+      if (!acct) {
+        await ws.loadHDWallet?.().catch(() => null);
+        acct = ws.getCurrentAccount?.();
+      }
+      if (!acct?.address || !acct?.privateKey) return null;
+      return {
+        email: `${acct.address}@aura50.local`,
+        pass: `A1${acct.privateKey.substring(0, 30)}`,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Login with the given credentials; if the account doesn't exist yet (wallet
+   * predates backend signup, or server DB was reset), create it — same payload
+   * WalletSetupScreen uses, including any pending referral code so the invite
+   * flow isn't bypassed. Persists token + userId + creds on success.
+   */
+  private async loginOrRegisterAccount(email: string, pass: string): Promise<{ token: string; userId: string } | null> {
+    const persist = async (data: any): Promise<{ token: string; userId: string }> => {
+      await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, data.token);
+      await AsyncStorage.setItem(STORAGE_KEY_USER_ID, data.user.id);
+      await AsyncStorage.setItem(STORAGE_KEY_AUTH_EMAIL, email);
+      await AsyncStorage.setItem(STORAGE_KEY_AUTH_PASS, pass);
+      return { token: data.token, userId: data.user.id };
+    };
+    try {
+      const login = await fetch(`${config.baseUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: pass }),
       });
-      if (!res.ok) {
-        console.warn('⚠️ Silent re-auth failed:', res.status);
-        return null;
+      if (login.ok) {
+        const d = await login.json();
+        if (d?.token && d?.user?.id) {
+          console.log('🔄 Backend session recovered via silent login.');
+          return persist(d);
+        }
       }
-      const data = await res.json();
-      if (!data?.token || !data?.user?.id) return null;
-      await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, data.token);
-      await AsyncStorage.setItem(STORAGE_KEY_USER_ID, data.user.id);
-      console.log('🔄 Recovered backend session via silent re-auth.');
-      return { token: data.token, userId: data.user.id };
+
+      // Account missing — create it from the wallet identity.
+      const referralCode = await AsyncStorage.getItem('@aura50_pending_referral_code');
+      const username = email.split('@')[0];
+      const reg = await fetch(`${config.baseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password: pass,
+          firstName: 'Mobile',
+          lastName: 'User',
+          username,
+          ...(referralCode ? { referralCode } : {}),
+        }),
+      });
+      if (reg.ok) {
+        const d = await reg.json();
+        if (d?.token && d?.user?.id) {
+          console.log('🆕 Backend account created from wallet identity.');
+          return persist(d);
+        }
+      }
+      const err = await reg.json().catch(() => ({} as any));
+      console.warn('⚠️ Backend session could not be established:', reg.status, (err as any)?.message);
+      return null;
     } catch (e: any) {
-      console.warn('⚠️ Silent re-auth error:', e?.message ?? String(e));
+      console.warn('⚠️ Backend session error:', e?.message ?? String(e));
       return null;
     }
   }
