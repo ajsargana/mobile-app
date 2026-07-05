@@ -26,6 +26,7 @@ import { ethers } from 'ethers';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from '../../config/environment';
+import attestation, { IS_NATIVE_MODULE_AVAILABLE } from '../attestation/DeviceAttestationModule';
 
 const SECURE_KEY_DEVICE_PRIVKEY = 'aura50_device_privkey_v1';
 const STORAGE_KEY_DEVICE_ADDRESS = '@aura50_device_address_v1';
@@ -103,6 +104,12 @@ class DeviceKeystoreService {
       const message = `register:${userId}:${deviceAddress}:${timestamp}`;
       const signature = await wallet.signMessage(message);
 
+      // Optional hardware attestation (Android Key Attestation). FULLY
+      // NON-BLOCKING: if the native module isn't linked (Expo Go), the device
+      // can't attest, or anything throws, we register WITHOUT it and the server
+      // fail-closes to tier 'none'. Registration + mining never break on this.
+      const attestationBody = await this.tryGatherAttestation(message);
+
       const authToken = await AsyncStorage.getItem(STORAGE_KEY_AUTH_TOKEN);
       const res = await fetch(`${config.baseUrl}/api/device/register`, {
         method: 'POST',
@@ -115,6 +122,7 @@ class DeviceKeystoreService {
           platform: Platform.OS === 'ios' ? 'ios' : 'android',
           signature,
           timestamp,
+          ...(attestationBody ? { attestation: attestationBody } : {}),
         }),
       });
 
@@ -136,6 +144,38 @@ class DeviceKeystoreService {
       console.error('DeviceKeystoreService.registerDevice error:', err);
       return { success: false, error: err?.message ?? String(err) };
     }
+  }
+
+  /**
+   * Best-effort Android Key Attestation. Returns the leaf-first base64-DER cert
+   * chain bound to this registration, or undefined if attestation isn't possible
+   * here (Expo Go / unsupported device / error) — in which case registration
+   * proceeds unattested. The challenge MUST equal the server's expectation:
+   * sha256(registration message). Never throws.
+   */
+  private async tryGatherAttestation(
+    registrationMessage: string,
+  ): Promise<{ platform: 'android'; certChainDer: string[] } | undefined> {
+    if (!IS_NATIVE_MODULE_AVAILABLE || Platform.OS !== 'android') return undefined;
+    try {
+      // sha256 of the exact signed message, hex without the 0x prefix — the
+      // native module feeds these bytes to setAttestationChallenge().
+      const nonceHex = ethers.sha256(ethers.toUtf8Bytes(registrationMessage)).slice(2);
+      const res = await attestation.attestAndroid({ nonceHex });
+      const chain = res?.keyAttestationChain;
+      // Ignore the mock fallback chain — only forward a real cert chain.
+      if (Array.isArray(chain) && chain.length >= 2 && !String(chain[0]).startsWith('MOCK')) {
+        // TEMP DIAGNOSTIC — paste this whole block back to finish the verifier.
+        console.log(
+          `\n📋 AURA50_ATTESTATION_CHAIN (${chain.length} certs) — copy everything between the markers:\n` +
+          `---BEGIN AURA50 CHAIN---\n${JSON.stringify(chain)}\n---END AURA50 CHAIN---\n`,
+        );
+        return { platform: 'android', certChainDer: chain };
+      }
+    } catch (e: any) {
+      console.log('ℹ️ Device attestation unavailable — registering unattested (tier none):', e?.message ?? String(e));
+    }
+    return undefined;
   }
 
   // ── Per-request headers ────────────────────────────────────────────────────

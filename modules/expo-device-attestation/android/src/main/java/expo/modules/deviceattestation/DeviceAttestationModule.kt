@@ -63,7 +63,15 @@ class DeviceAttestationModule : Module() {
       val (chainBase64, pubKeyHashHex) = readKeystoreChain()
 
       // 2. Request a Play Integrity Standard token bound to the same nonce.
-      val token = requestIntegrityTokenStandard(context, nonceHex)
+      //    BEST-EFFORT ONLY: the AURA50 server verifies the Key Attestation chain
+      //    OFFLINE against Google's hardware root — it does NOT require an
+      //    integrity token or a Google Cloud project. So a missing/failed token
+      //    must never block attestation; we return "" and still ship the chain.
+      val token = try {
+        requestIntegrityTokenStandard(context, nonceHex)
+      } catch (e: Throwable) {
+        ""
+      }
 
       mapOf(
         "integrityToken" to token,
