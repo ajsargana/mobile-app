@@ -277,11 +277,16 @@ const EpochRow = ({
   colors: any;
   isDark: boolean;
 }) => {
-  const isFinalized  = epoch.status === 'finalized';
+  // Full lifecycle: Challenge (window open) → Finalized (root locked, credit
+  // imminent) → Paid (rewards distributed to balances). Without the Paid state
+  // credited epochs looked stuck in the Merkle system even though the A50 had
+  // already landed.
+  const isCredited   = epoch.status === 'finalized' && (epoch as any).credited === true;
+  const isFinalized  = epoch.status === 'finalized' && !isCredited;
   const isPending    = epoch.status === 'pending';
-  const statusColor  = isFinalized ? '#27AE60' : isPending ? '#F39C12' : colors.textMuted;
-  const statusLabel  = isFinalized ? 'Finalized' : isPending ? 'Challenge' : 'Not found';
-  const statusIcon   = isFinalized ? 'checkmark-circle' : isPending ? 'hourglass' : 'remove-circle-outline';
+  const statusColor  = isCredited ? '#2ECC71' : isFinalized ? '#27AE60' : isPending ? '#F39C12' : colors.textMuted;
+  const statusLabel  = isCredited ? 'Paid' : isFinalized ? 'Finalized' : isPending ? 'Challenge' : 'Not found';
+  const statusIcon   = isCredited ? 'checkmark-done-circle' : isFinalized ? 'checkmark-circle' : isPending ? 'hourglass' : 'remove-circle-outline';
 
   return (
     <View style={[styles.epochRow, {

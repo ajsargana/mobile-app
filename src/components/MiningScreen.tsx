@@ -200,8 +200,11 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem('@aura50_auth_token');
       if (!token) return;
+      // Cache-Control: Android's okhttp cached this response and served a
+      // frozen dailyCount for entire mining sessions (server now also sends
+      // no-store; this header makes the client side explicit).
       const res = await fetch(`${config.baseUrl}/api/participation/can-participate`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${token}`, 'Cache-Control': 'no-cache' },
       });
       if (!res.ok) return;
       const data = await res.json();
