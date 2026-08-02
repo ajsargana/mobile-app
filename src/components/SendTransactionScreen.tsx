@@ -314,6 +314,19 @@ export const SendTransactionScreen = ({ navigation, route }: any) => {
 
       const result = await response.json();
 
+      // /api/v1/transactions now requires a valid session and verifies that the
+      // sender wallet belongs to the caller. A stale token used to still go
+      // through, so surface expiry clearly instead of the raw server string.
+      if (response.status === 401) {
+        console.log('🔓 Auth token invalid/expired, clearing token');
+        await AsyncStorage.removeItem('@aura50_auth_token');
+        throw new Error('Your session has expired. Please sign in again to send A50.');
+      }
+
+      if (response.status === 403) {
+        throw new Error(result.error || result.message || 'This wallet is not authorised to send.');
+      }
+
       if (!response.ok || !result.success) {
         throw new Error(result.error || result.message || 'Transaction failed');
       }
