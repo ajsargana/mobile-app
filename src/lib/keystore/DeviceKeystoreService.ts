@@ -48,6 +48,12 @@ export interface RegisterResult {
   error?: string;
   cooldownMs?: number;
   cooldownHours?: number;
+  /** Hardware tier the server proved for this device: 'none' | 'tee' | 'strongbox'. */
+  attestationTier?: string;
+  /** False when the server requires a hardware tier this device did not reach. */
+  canMine?: boolean;
+  requiredTier?: string;
+  warning?: string;
 }
 
 class DeviceKeystoreService {
@@ -277,8 +283,29 @@ class DeviceKeystoreService {
         };
       }
 
-      console.log('✅ Device registered:', wallet.address.substring(0, 12), '→ user', effectiveUserId.substring(0, 8));
-      return { success: true, deviceAddress: wallet.address };
+      // The server reports the hardware tier it actually granted. Attestation is
+      // gathered best-effort above, so a device can silently end up at 'none' —
+      // and when the server requires a hardware tier, that device cannot mine.
+      // Surface it here rather than letting the user discover it as a 403 on
+      // their first share.
+      const tier: string = json?.attestationTier ?? 'none';
+      const canMine: boolean = json?.canMine !== false;
+      if (!canMine) {
+        console.warn(
+          `⚠️ Device registered at tier '${tier}' but mining requires '${json?.requiredTier}'. ` +
+          `${json?.warning ?? ''}`,
+        );
+      } else {
+        console.log(`✅ Device registered (tier ${tier}):`, wallet.address.substring(0, 12), '→ user', effectiveUserId.substring(0, 8));
+      }
+      return {
+        success: true,
+        deviceAddress: wallet.address,
+        attestationTier: tier,
+        canMine,
+        requiredTier: json?.requiredTier,
+        warning: json?.warning,
+      };
     } catch (err: any) {
       console.error('DeviceKeystoreService.registerDevice error:', err);
       return { success: false, error: err?.message ?? String(err) };
@@ -304,15 +331,12 @@ class DeviceKeystoreService {
       const chain = res?.keyAttestationChain;
       // Ignore the mock fallback chain — only forward a real cert chain.
       if (Array.isArray(chain) && chain.length >= 2 && !String(chain[0]).startsWith('MOCK')) {
-        // TEMP DIAGNOSTIC — paste this whole block back to finish the verifier.
-        console.log(
-          `\n📋 AURA50_ATTESTATION_CHAIN (${chain.length} certs) — copy everything between the markers:\n` +
-          `---BEGIN AURA50 CHAIN---\n${JSON.stringify(chain)}\n---END AURA50 CHAIN---\n`,
-        );
+        console.log(`🔐 Hardware attestation gathered (${chain.length} certs)`);
         return { platform: 'android', certChainDer: chain };
       }
+      console.warn('⚠️ Attestation returned no usable chain — device will register unattested');
     } catch (e: any) {
-      console.log('ℹ️ Device attestation unavailable — registering unattested (tier none):', e?.message ?? String(e));
+      console.warn('⚠️ Device attestation failed — registering unattested (tier none):', e?.message ?? String(e));
     }
     return undefined;
   }

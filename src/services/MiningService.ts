@@ -550,11 +550,8 @@ export class MiningService {
                               this.calculateTargetThreshold(difficulty);
       // Convert timestamp to milliseconds number (same as getBlockData()) to ensure
       // it matches the server's validation format regardless of how the server serialised it.
-      const rawTs = this.currentBlockInfo?.timestamp;
-      const tsNumber = typeof rawTs === 'number' ? rawTs : (rawTs ? new Date(rawTs).getTime() : 0);
-      const blockData = this.currentBlockInfo
-        ? `${this.currentBlockInfo.height}|${this.currentBlockInfo.prevHash}|${this.currentBlockInfo.merkleRoot}|${tsNumber}`
-        : '';
+      // Same miner-bound challenge the mining loop uses — see getBlockData().
+      const blockData: string = this.currentBlockInfo?.blockData ?? '';
 
       if (blockData) {
         let found = false;
@@ -1560,24 +1557,27 @@ export class MiningService {
   }
 
   private async getBlockData(): Promise<string> {
-    // CRITICAL: Must match server format exactly!
-    // Server expects: `${block.height}|${block.prevHash}|${block.merkleRoot}|${block.timestamp}|${nonce}`
-    // Note: nonce is added later during mining (with the pipe added by computeHash)
+    // Use the server-issued challenge VERBATIM. It is bound to this miner
+    // (…|timestamp|userId), which is what makes the work non-transferable: a
+    // nonce solved here hashes differently for any other account, so shares can
+    // no longer be mined once and replayed across many identities.
+    //
+    // Do NOT rebuild this string locally. The binding component is not derivable
+    // client-side, and any local reconstruction would silently diverge from the
+    // server's verification and get every share rejected.
     if (!this.currentBlockInfo) {
       console.error('❌ No block info available for hash calculation');
       return '';
     }
 
-    // CRITICAL FIX: Convert timestamp to number (milliseconds since epoch)
-    // Server uses timestamp as number, not Date string!
-    let timestamp = this.currentBlockInfo.timestamp;
-    if (typeof timestamp !== 'number') {
-      // If it's a Date object or string, convert to milliseconds
-      timestamp = new Date(timestamp).getTime();
+    const blockData = this.currentBlockInfo.blockData;
+    if (typeof blockData !== 'string' || blockData.length === 0) {
+      console.error('❌ Server did not supply a bound blockData challenge — refusing to mine an unverifiable preimage');
+      return '';
     }
 
     // Return WITHOUT trailing pipe - computeHash will add it
-    return `${this.currentBlockInfo.height}|${this.currentBlockInfo.prevHash}|${this.currentBlockInfo.merkleRoot}|${timestamp}`;
+    return blockData;
   }
 
   // Statistics and Monitoring

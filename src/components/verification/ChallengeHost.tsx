@@ -32,9 +32,13 @@ export const ChallengeHost: React.FC<Props> = ({ challenges, onAllPass, onFail, 
   const current = challenges[idx];
   const Component = useMemo(() => (current ? COMPONENTS[current.id] : null), [current]);
 
+  // Keyed on the spec identity, not just `idx`: an `unsupported` re-roll swaps
+  // the challenge in place at the same index, and the replacement needs a fresh
+  // latch or its onPass/onFail would be swallowed by the previous one's.
+  const challengeKey = `${current ? current.id : 'none'}-${idx}`;
   useEffect(() => {
     completedRef.current = false;
-  }, [idx]);
+  }, [challengeKey]);
 
   if (!current || !Component) {
     return null;
@@ -86,7 +90,7 @@ export const ChallengeHost: React.FC<Props> = ({ challenges, onAllPass, onFail, 
 
       {/* Active challenge */}
       <Component
-        key={`${current.id}-${idx}`}
+        key={challengeKey}
         spec={current}
         onPass={handlePass}
         onFail={handleFail}

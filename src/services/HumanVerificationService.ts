@@ -36,6 +36,17 @@ const MAX_FAILS_BEFORE_COOLDOWN = 3;
 const COOLDOWN_MS = 5 * 60 * 1000;
 const FACE_DAY_PROBABILITY = 0.30;
 
+/** Every challenge except the Tier-3 face liveness check. */
+const NON_FACE_POOL: ChallengeId[] = ['shake', 'tilt', 'tap', 'sequence'];
+
+/**
+ * Domain separators so the type stream and the fallback stream are independent
+ * of each other and of the params stream, even though all three are derived
+ * from the same daily seed.
+ */
+const TYPE_SALT = 0x7f4a7c15;
+const FALLBACK_SALT = 0x2545f491;
+
 // ── Types ───────────────────────────────────────────────────────────────────
 export type ChallengeId = 'shake' | 'tilt' | 'tap' | 'sequence' | 'face';
 export type ChallengeTier = 1 | 2 | 3;
@@ -344,9 +355,17 @@ export class HumanVerificationService {
   // ── Challenge picker ─────────────────────────────────────────────────────
 
   /**
-   * Deterministic from seed: same seed → same challenge. The seed rotates
+   * Deterministic from seed: same seed → same challenge TYPE. The seed rotates
    * daily (server-issued), so the user sees a stable pick for the day but
    * different days roll different challenges.
+   *
+   * The type MUST NOT depend on `attempt` or on Math.random(). The gate bumps
+   * its attempt counter every time the modal closes, so a random type would let
+   * a user close and re-open until the 70% branch handed them a tap puzzle —
+   * skipping the Tier-3 face liveness check entirely on a face day.
+   *
+   * `attempt` still varies the PARAMS, so a retry isn't a replay of the exact
+   * same puzzle (same tap grid, same flash sequence).
    *
    * Returns exactly 1 challenge drawn from any tier.
    */
@@ -354,18 +373,30 @@ export class HumanVerificationService {
     if (!seedHex || seedHex.length < 8) {
       throw new Error('Invalid seed');
     }
-    // Seed-derived RNG is used only for challenge PARAMS (targetIndex, sequence,
-    // etc.) to keep them stable within a session.  Challenge TYPE is picked with
-    // Math.random() so every attempt/open gets a genuinely different challenge.
-    const rng = makeXorshift32(seedHex, attempt);
+    const typeRng = makeXorshift32(seedHex, 0, TYPE_SALT);
+    const paramRng = makeXorshift32(seedHex, attempt);
 
-    if (Math.random() < FACE_DAY_PROBABILITY) {
-      return [this.specFor('face', rng)];
+    if (typeRng() < FACE_DAY_PROBABILITY) {
+      return [this.specFor('face', paramRng)];
     }
+    const id = NON_FACE_POOL[Math.floor(typeRng() * NON_FACE_POOL.length)];
+    return [this.specFor(id, paramRng)];
+  }
 
-    const pool: ChallengeId[] = ['shake', 'tilt', 'tap', 'sequence'];
-    const id = pool[Math.floor(Math.random() * pool.length)];
-    return [this.specFor(id, rng)];
+  /**
+   * A guaranteed non-face challenge, for when the face challenge reports
+   * `unsupported` (native module missing, no front camera, device can't
+   * compute the signal the prompt needs). Deterministic from the seed for the
+   * same reason `pickChallenges` is.
+   */
+  pickFallbackChallenge(seedHex: string, attempt: number = 0): ChallengeSpec {
+    if (!seedHex || seedHex.length < 8) {
+      throw new Error('Invalid seed');
+    }
+    const typeRng = makeXorshift32(seedHex, 0, FALLBACK_SALT);
+    const paramRng = makeXorshift32(seedHex, attempt);
+    const id = NON_FACE_POOL[Math.floor(typeRng() * NON_FACE_POOL.length)];
+    return this.specFor(id, paramRng);
   }
 
   private specFor(id: ChallengeId, rng: () => number): ChallengeSpec {
@@ -391,7 +422,10 @@ export class HumanVerificationService {
       case 'face': {
         const prompts = ['smile', 'blink', 'lookLeft', 'lookRight', 'lookUp', 'lookDown'] as const;
         const prompt = prompts[Math.floor(rng() * prompts.length)];
-        return { id, tier: 3, params: { prompt, timeoutMs: 18_000 } };
+        // The challenge now requires a neutral-pose baseline before the gesture
+        // is counted, so it needs a little more headroom than the old
+        // single-frame check did.
+        return { id, tier: 3, params: { prompt, timeoutMs: 25_000 } };
       }
     }
   }
@@ -413,10 +447,13 @@ export async function getRandomNonce(): Promise<string> {
 /**
  * Tiny seedable RNG. Reads first 4 bytes of seed hex into a 32-bit state.
  * Output: float in [0, 1).
+ *
+ * `attempt` varies the stream per retry; `salt` is a domain separator so two
+ * callers can draw independent streams from the same seed and attempt.
  */
-function makeXorshift32(seedHex: string, attempt: number = 0): () => number {
-  // XOR the attempt into the initial state so each retry yields a different challenge.
-  let state = (parseInt(seedHex.substring(0, 8), 16) ^ (attempt * 0x9e3779b9)) >>> 0;
+function makeXorshift32(seedHex: string, attempt: number = 0, salt: number = 0): () => number {
+  // XOR the attempt into the initial state so each retry yields different params.
+  let state = ((parseInt(seedHex.substring(0, 8), 16) ^ (attempt * 0x9e3779b9)) ^ salt) >>> 0;
   if (state === 0) state = 0xdeadbeef;
   return function next() {
     state ^= state << 13;

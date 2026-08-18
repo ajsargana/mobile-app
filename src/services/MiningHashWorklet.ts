@@ -106,7 +106,7 @@ export interface MiningBatchResult {
 }
 
 export function miningBatchWorklet(
-  blockData: string,      // "height|prevHash|merkleRoot|timestamp"
+  blockData: string,      // server-issued, miner-bound: "height|prevHash|merkleRoot|timestamp|userId"
   targetThreshold: string, // 64-char lowercase hex
   batchSize: number,
 ): MiningBatchResult {

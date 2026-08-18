@@ -150,14 +150,13 @@ export const VerificationGate: React.FC<Props> = ({ visible, seed, onPass, onCan
         return;
       }
       reRollCountRef.current += 1;
-      // Swap face → a fresh Tier-2 challenge derived from seed
-      const fallback: ChallengeSpec = svc
-        .pickChallenges(seedState.seed)
-        .find((c) => c.tier !== 3) || {
-        id: 'tap',
-        tier: 2,
-        params: { gridSize: 16, targetIndex: 0 },
-      };
+      // Swap face → a guaranteed non-face challenge derived from the same seed.
+      let fallback: ChallengeSpec;
+      try {
+        fallback = svc.pickFallbackChallenge(seedState.seed, attemptCountRef.current);
+      } catch {
+        fallback = { id: 'tap', tier: 2, params: { gridSize: 16, targetIndex: 0 } };
+      }
       setChallenges((prev) => prev.map((c) => (c.id === failedSpec.id ? fallback : c)));
     },
     [seedState, handleFail],
