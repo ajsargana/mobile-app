@@ -413,11 +413,15 @@ export class MiningService {
 
     this.blockChangeListener = (newBlock: any) => {
       if (!this.isMining || !this.currentSession) return;
-      const blockChanged   = newBlock?.id && newBlock.id !== this.currentSession.blockId;
-      const blockFinalized = newBlock?.status === 'final';
-      if (blockChanged || blockFinalized) {
+      // Restart only when a NEW block opens. Under BFT every block is 'final'
+      // the instant it is committed — and the server keeps accepting shares on
+      // the head (work on the previous block is credited to the head) — so
+      // treating 'final' as "block over" restarted every miner on every block
+      // broadcast, throwing away in-progress work each time.
+      const blockChanged = newBlock?.id && newBlock.id !== this.currentSession.blockId;
+      if (blockChanged) {
         console.log('🔔 WebSocket: Block change detected while mining', {
-          reason: blockChanged ? 'new block opened' : 'block finalized',
+          reason: 'new block opened',
           newId: String(newBlock?.id ?? '').substring(0, 8),
           ourId: this.currentSession.blockId?.substring(0, 8),
         });
@@ -1529,12 +1533,8 @@ export class MiningService {
           return false;
         }
 
-        // Check if our block is finalized
-        if (data.status === 'final') {
-          console.log(`📢 Block FINALIZED! Height: ${data.height}`);
-          console.log(`   Need to wait for new block...`);
-          return false;
-        }
+        // (No 'final' check: under BFT a committed block is 'final' at once and
+        // still collects shares until the next block opens — handled above.)
 
         // Check if block is 'confirmed' but not yet 'final' - still valid but close
         if (data.status === 'confirmed') {
