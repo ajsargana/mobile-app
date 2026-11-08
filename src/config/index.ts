@@ -21,7 +21,6 @@ export const API_CONFIG = {
       LOGOUT: '/api/auth/logout',
     },
     MINING: {
-      START: '/api/mining/start',
       STOP: '/api/mining/stop',
       STATUS: '/api/mining/status',
       HISTORY: '/api/mining/history',

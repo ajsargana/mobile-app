@@ -91,8 +91,6 @@ export const API_ENDPOINTS = {
   stats: '/api/user/stats',
 
   // Mining
-  miningStart: '/api/mining/start',
-  miningSubmit: '/api/mining/submit',
   miningCanMine: '/api/mining/can-mine',
   miningPendingRewards: '/api/mining/pending-rewards',
 

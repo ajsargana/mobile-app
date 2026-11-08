@@ -512,6 +512,8 @@ export class NetworkService {
     appliedBoost?: number;
     /** Server-calculated next difficulty target for vardiff. */
     nextDifficulty?: number;
+    /** Wallet "Pending ≈" figure — see PendingRewardService. */
+    pendingReward?: unknown;
   }> {
     try {
       const authToken = await this.getAuthToken();
