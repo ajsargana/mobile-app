@@ -15,6 +15,7 @@ import {
   Platform,
   Animated,
   Dimensions,
+  DeviceEventEmitter,
 } from 'react-native';
 
 const SCREEN_H = Dimensions.get('window').height;
@@ -38,6 +39,7 @@ import { StakingPill } from './StakingPill';
 import { applyFontScaling } from '../utils/fontScaling';
 import PhaseTaskService, { CurrentTask, LockStatus } from '../services/PhaseTaskService';
 import { LockStatusCard, CurrentTaskCard, LaunchLockModal } from './LaunchPhaseCards';
+import { PENDING_REWARD_EVENT, getLatestPendingReward, refreshPendingReward, type PendingReward } from '../services/PendingRewardService';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const COINS_KEY      = '@aura50_market_coins';
@@ -116,6 +118,8 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   // Wallet
   const [showBalance, setShowBalance]   = useState(true);
   const [balance, setBalance]           = useState('0.00000000');
+  // Live "Pending ≈" mining figure — shown apart from the balance, never added to it.
+  const [pendingReward, setPendingReward] = useState<PendingReward | null>(getLatestPendingReward());
   const [walletAddress, setWalletAddress] = useState('');
   const [userName, setUserName]         = useState('');
   const [notificationCount, setNotificationCount] = useState(0);
@@ -207,6 +211,12 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
   const waitingForTxReturn = useRef(false);
 
   const mountedRef     = useRef(true);
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(PENDING_REWARD_EVENT, (p: PendingReward) => {
+      if (mountedRef.current) setPendingReward(p);
+    });
+    return () => sub.remove();
+  }, []);
   const marketTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const searchTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const walletService  = EnhancedWalletService.getInstance();
@@ -450,6 +460,7 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
       const [, txResult] = await Promise.all([
         walletService.syncBalanceFromBackend().catch(() => null),
         walletService.syncTransactionsFromBackend(5).catch(() => null),
+        refreshPendingReward(),
       ]);
       if (!mountedRef.current) return;
 
@@ -723,6 +734,19 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
             </TouchableOpacity>
           </View>
           <Text style={styles.balanceCurrency}>A50</Text>
+          {showBalance && pendingReward && parseFloat(pendingReward.total) > 0 ? (
+            <TouchableOpacity
+              onPress={() => Alert.alert(
+                'Pending mining rewards',
+                'An estimate of what your recent shares will earn. It changes as other miners join the same epoch, '
+                + 'and the exact amount settles about 6 minutes after the epoch ends. '
+                + 'It moves into your balance when it is paid — it is not spendable yet.',
+              )}
+              accessibilityLabel="Pending mining rewards — tap for details"
+            >
+              <Text style={styles.pendingText}>≈ +{parseFloat(pendingReward.total).toFixed(8)} pending</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {/* Wallet address */}
           {walletAddress ? (
@@ -1358,6 +1382,7 @@ const styles = applyFontScaling(StyleSheet.create({
   lockBadge: { marginRight: 8, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(245,158,11,0.85)', justifyContent: 'center', alignItems: 'center' },
   eyeBtn: { marginLeft: 8, padding: 5, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 14 },
   balanceCurrency: { color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 10 },
+  pendingText: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600', marginTop: -6, marginBottom: 10 },
   cardAddress: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: 'monospace', letterSpacing: 0.5, marginBottom: 16 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardBottomRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },

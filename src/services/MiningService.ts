@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
+import { publishPendingReward, getLatestPendingReward } from './PendingRewardService';
 import { MiningSession, DeviceMetrics, NetworkStats } from '../types';
 import { EnhancedWalletService } from './EnhancedWalletService';
 import { NetworkService } from './NetworkService';
@@ -1115,6 +1116,8 @@ export class MiningService {
 
       if (shareResult.accepted) {
         this.sessionShareCount++;
+        // Live wallet "Pending ≈" — the server returns it on every landed share.
+        publishPendingReward(shareResult.pendingReward);
         const MAX_SHARES_PER_BLOCK = 2;
 
         console.log(`✅ Share ${this.sessionShareCount}/${MAX_SHARES_PER_BLOCK} accepted! Block: ${shareResult.blockHeight}`);
@@ -1467,6 +1470,7 @@ export class MiningService {
 
       if (response.ok) {
         const data = await response.json();
+        publishPendingReward(data?.pendingReward);
         console.log('✅ Got current block:', data.blockId);
         // Store full block info for hash calculation
         this.currentBlockInfo = data;
@@ -1505,6 +1509,7 @@ export class MiningService {
 
       if (response.ok) {
         const data = await response.json();
+        publishPendingReward(data?.pendingReward);
 
         // DEBUG: Log what we received
         console.log('🔍 Block status response:', {
@@ -1659,15 +1664,9 @@ export class MiningService {
   }
 
   private calculateEstimatedReward(): string {
-    // Simplified reward calculation
-    if (!this.currentSession) {
-      return '0';
-    }
-
-    const baseReward = 0.1; // Base A50 per minute of mining
-    const timeInMinutes = (Date.now() - this.currentSession.startTime.getTime()) / (1000 * 60);
-
-    return (baseReward * timeInMinutes).toFixed(8);
+    // The server's real figure (same split the payout uses), not a time-based
+    // guess. The old flat 0.1 A50/min had no relation to what was paid.
+    return getLatestPendingReward()?.total ?? '0';
   }
 
   // Persistence
