@@ -30,11 +30,33 @@ export interface PendingReward {
   poolReward: string;
   /** When the latest awaiting epoch finishes its challenge window (ms), if any. */
   settlesBy: number | null;
+  /**
+   * Exact rewards of finished epochs that are not spendable yet — they move
+   * into the balance when today's mining sessions end (or the UTC day ends).
+   * Part of `total`. Absent on servers without the side ledger.
+   */
+  tentative?: string;
+  /** When the tentative amount is scheduled to become spendable (ms). */
+  settlesAt?: number | null;
+}
+
+/** Per block / per epoch detail for the wallet's pending sheet. */
+export interface PendingBreakdown {
+  /** Blocks still open: an estimate that moves as other miners join. */
+  open: Array<{ height: number; myShares: number; allShares: number; estimated: string; status: 'estimated' }>;
+  /** Finished epochs: exact amount, tentative until the sessions end. */
+  tentative: Array<{ epochId: number; blocks: number[]; myShares: number; allShares: number; amount: string; status: 'tentative' }>;
+  settlesAt: number | null;
 }
 
 export const PENDING_REWARD_EVENT = 'aura50:pendingReward';
 
 let latest: PendingReward | null = null;
+let latestBreakdown: PendingBreakdown | null = null;
+
+export function getLatestBreakdown(): PendingBreakdown | null {
+  return latestBreakdown;
+}
 
 const isPendingReward = (v: any): v is PendingReward =>
   !!v && typeof v === 'object' && typeof v.total === 'string' && Number.isFinite(parseFloat(v.total));
@@ -60,6 +82,8 @@ export async function refreshPendingReward(): Promise<PendingReward | null> {
     });
     if (!res.ok) return latest;
     const json = await res.json();
+    const b = json?.myEpochs;
+    if (b && Array.isArray(b.open) && Array.isArray(b.tentative)) latestBreakdown = b as PendingBreakdown;
     publishPendingReward(json?.myPending);
   } catch {
     // Offline or server busy — keep showing the last known value.
