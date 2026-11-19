@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EnhancedWalletService } from './EnhancedWalletService';
 import { getApiUrl, API_ENDPOINTS } from '../config/environment';
+import { postSignedCall } from '../lib/keystore/txAuth';
 
 const STORAGE_KEY_PREFIX = '@aura50_staking_data';
 
@@ -43,6 +44,15 @@ export function computeStakingBoost(amount: number, lockDays: number): BoostPrev
 async function getAuthToken(): Promise<string | null> {
   return AsyncStorage.getItem('@aura50_auth_token');
 }
+
+// ── Signed contract calls ─────────────────────────────────────────────────────
+// Stake/unstake are contract calls that execute as this account, so the server
+// asks for a device-key signature (428) and every validator re-checks it. The
+// expected call below must match what the server's staking route builds
+// (server/routes/staking.ts); txAuth refuses to sign anything else.
+const STAKING_CONTRACT = 'b1d386e181943ca70e3dfaac8d9e0dbfe46f1cc5'; // server/staking-genesis.ts
+const STAKING_GAS_LIMIT = 5_000_000;
+const SATS_PER_A50 = 100_000_000;
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -137,14 +147,16 @@ export class StakingService {
     const token = await getAuthToken();
     if (token) {
       try {
-        const res = await fetch(getApiUrl(API_ENDPOINTS.stakingStake), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+        const res = await postSignedCall(
+          getApiUrl(API_ENDPOINTS.stakingStake),
+          { amount, lockDays },
+          { Authorization: `Bearer ${token}` },
+          {
+            contract: STAKING_CONTRACT, function: 'stake', args: [lockDays],
+            valueSats: Math.round(amount * SATS_PER_A50), gasLimit: STAKING_GAS_LIMIT,
+            account: await AsyncStorage.getItem('@aura50_user_id'),
           },
-          body: JSON.stringify({ amount, lockDays }),
-        });
+        );
 
         if (res.ok) {
           // Server now returns { ok, txId, status: 'pending' } — stake settles in ~1 min.
@@ -228,10 +240,16 @@ export class StakingService {
     const token = await getAuthToken();
     if (token) {
       try {
-        const res = await fetch(getApiUrl(API_ENDPOINTS.stakingUnstake), {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await postSignedCall(
+          getApiUrl(API_ENDPOINTS.stakingUnstake),
+          {},
+          { Authorization: `Bearer ${token}` },
+          {
+            contract: STAKING_CONTRACT, function: 'unstake', args: [],
+            valueSats: 0, gasLimit: STAKING_GAS_LIMIT,
+            account: await AsyncStorage.getItem('@aura50_user_id'),
+          },
+        );
 
         if (res.ok) {
           // Server returns { ok, txId, status: 'pending' } — tokens return after ~1 min.
