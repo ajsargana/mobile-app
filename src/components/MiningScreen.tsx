@@ -38,7 +38,8 @@ import {
   updateForegroundNotification,
 } from '../services/MiningForegroundService';
 import { TrustLevel, DeviceMetrics } from '../types';
-import config from '../config/environment';
+import config, { getApiUrl } from '../config/environment';
+import { ensureOnchainAccount } from '../lib/keystore/onchainAccount';
 import { useTheme } from '../contexts/ThemeContext';
 import { useDeviceCapability } from '../contexts/DeviceCapabilityContext';
 import StreakService from '../services/StreakService';
@@ -475,6 +476,11 @@ export const MiningScreen: React.FC<MiningScreenProps> = ({ navigation }) => {
     StakingService.getInstance().getActiveStake().then(() => {
       setStakingBoost(StakingService.getInstance().getBoostMultiplier());
     });
+    // Put the wallet's account on chain once the network enables it (signed
+    // with the wallet key on this phone; no-op once registered).
+    AsyncStorage.getItem('@aura50_auth_token').then(token =>
+      ensureOnchainAccount(getApiUrl(''), token, EnhancedWalletService.getInstance().getCurrentAccount()),
+    ).catch(() => {});
   }, []));
 
   useFocusEffect(useCallback(() => {
