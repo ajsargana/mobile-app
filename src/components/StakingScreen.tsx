@@ -99,7 +99,7 @@ export const StakingScreen: React.FC<Props> = ({ navigation }) => {
     if (amount > walletBalance)
       return `You only have ${fmt(walletBalance)} A50 in your wallet.`;
     if (amount > available)
-      return `${fmt(walletBalance - available, 4)} A50 is already locked in an active stake.`;
+      return `${fmt(walletBalance - available, 4)} A50 of your balance is locked (an active stake or a security-circle stake).`;
     return null;
   })();
 
@@ -145,8 +145,9 @@ export const StakingScreen: React.FC<Props> = ({ navigation }) => {
         'If you want a higher boost, decide now — as coin is locked, so is the time.',
         'Once locked, this opportunity is gone.',
         '',
-        'These coins will be completely non-moveable until the lock expires.',
+        'The coins stay in your wallet but cannot be sent or used until the lock ends.',
         'No early withdrawal. No exceptions.',
+        `On ${unlockDate} they unlock by themselves — nothing to claim.`,
       ].join('\n'),
       [
         { text: 'Cancel', style: 'cancel' },
@@ -184,30 +185,18 @@ export const StakingScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    Alert.alert(
-      'Claim Back Coins',
-      `Your lock period has ended. Return ${activeStake?.lockedAmount ?? 0} A50 to your spendable balance?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Claim',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              await svc.unstake();
-              console.log(`[Staking] Unstaked successfully. Coins returned to balance.`);
-              await refresh();
-              Alert.alert('Unlocked', `${activeStake?.lockedAmount ?? 0} A50 has been returned to your spendable balance.`);
-            } catch (e: any) {
-              console.error('[Staking] unstake() failed:', e.message);
-              Alert.alert('Unlock Failed', e.message);
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    // The lock has ended: the coins are already spendable. This only clears
+    // the finished stake so a new one can be made.
+    setLoading(true);
+    try {
+      await svc.unstake();
+      await refresh();
+    } catch (e: any) {
+      console.error('[Staking] unstake() failed:', e.message);
+      Alert.alert('Could not clear the stake', e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -499,7 +488,7 @@ const ActiveStakeView = ({
         <View style={[styles.warnCard, { backgroundColor: 'rgba(39,174,96,0.09)', borderColor: 'rgba(39,174,96,0.28)' }]}>
           <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} style={{ marginRight: 8, marginTop: 1 }} />
           <Text style={[styles.warnText, { color: colors.success }]}>
-            Lock period complete. Your {fmt(stake.lockedAmount)} A50 is ready to be claimed back.
+            Lock period complete. Your {fmt(stake.lockedAmount)} A50 is unlocked and spendable again.
           </Text>
         </View>
       ) : (
@@ -540,7 +529,7 @@ const ActiveStakeView = ({
           {loading
             ? 'Processing…'
             : canUnstake
-            ? 'Claim Back Coins'
+            ? 'Done — Stake Again'
             : `Locked — ${daysLeft}d remaining`}
         </Text>
       </TouchableOpacity>
@@ -584,12 +573,12 @@ const InfoModal = ({ visible, onClose, colors, isDark }: any) => (
             {
               icon: 'lock-closed-outline',
               title: 'Hard Lock — No Exceptions',
-              body: 'Once staked, coins are removed from your spendable balance and completely non-moveable.\n\nThe unlock button only activates after the full lock period. There is no early withdrawal, no force-unlock, and no penalty path.',
+              body: 'Staked coins never leave your wallet, but they are locked: they cannot be sent or used until the lock ends.\n\nThere is no early withdrawal, no force-unlock, and no penalty path. When the lock ends the coins unlock by themselves — there is nothing to claim.',
             },
             {
               icon: 'wallet-outline',
               title: 'Available Balance',
-              body: 'Your spendable balance is always your unlocked coins. Locked coins are held separately and protected.',
+              body: 'Your wallet balance includes locked coins. Your spendable (available) balance is the balance minus anything locked.',
             },
           ].map(item => (
             <View key={item.title} style={[styles.infoItem, { borderBottomColor: colors.divider }]}>
