@@ -39,7 +39,25 @@ import { StakingPill } from './StakingPill';
 import { applyFontScaling } from '../utils/fontScaling';
 import PhaseTaskService, { CurrentTask, LockStatus } from '../services/PhaseTaskService';
 import { LockStatusCard, CurrentTaskCard, LaunchLockModal } from './LaunchPhaseCards';
-import { PENDING_REWARD_EVENT, getLatestPendingReward, refreshPendingReward, type PendingReward } from '../services/PendingRewardService';
+import { PENDING_REWARD_EVENT, getLatestPendingReward, getLatestBreakdown, refreshPendingReward, type PendingReward } from '../services/PendingRewardService';
+
+/** Text for the "≈ pending" sheet: estimated (open blocks) vs tentative (finished epochs). */
+function pendingDetailText(p: PendingReward | null, b: ReturnType<typeof getLatestBreakdown>): string {
+  if (!p) return 'No pending mining rewards right now.';
+  const n = (v?: string) => parseFloat(v ?? '0') || 0;
+  const lines: string[] = [];
+  const est = n(p.estimated) + n(p.awaiting);
+  if (est > 0) lines.push(`Estimated ≈ ${est.toFixed(8)} A50 — blocks still open or in their 5-minute check. It moves as other miners join.`);
+  if (n(p.tentative) > 0) {
+    const when = p.settlesAt ? new Date(p.settlesAt).toLocaleString() : 'when today\'s mining sessions end';
+    lines.push(`Tentative ${n(p.tentative).toFixed(8)} A50 — exact amount of finished epochs. Becomes spendable when your sessions for today end (scheduled: ${when}).`);
+  }
+  for (const o of (b?.open ?? []).slice(0, 3)) lines.push(`• Block ${o.height}: your ${o.myShares} of ${Math.round(o.allShares).toLocaleString()} shares ≈ ${n(o.estimated).toFixed(8)} (estimated)`);
+  for (const t of (b?.tentative ?? []).slice(0, 5)) lines.push(`• Epoch ${t.epochId} (block ${t.blocks?.[0] ?? '—'}): your ${t.myShares} of ${Math.round(t.allShares).toLocaleString()} shares = ${n(t.amount).toFixed(8)} (tentative)`);
+  lines.push('Not spendable yet — never added to your balance until it settles.');
+  return lines.join('\n\n');
+}
+
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const COINS_KEY      = '@aura50_market_coins';
@@ -736,12 +754,10 @@ export const NewWalletScreen: React.FC<NewWalletScreenProps> = ({ navigation }) 
           <Text style={styles.balanceCurrency}>A50</Text>
           {showBalance && pendingReward && parseFloat(pendingReward.total) > 0 ? (
             <TouchableOpacity
-              onPress={() => Alert.alert(
-                'Pending mining rewards',
-                'An estimate of what your recent shares will earn. It changes as other miners join the same epoch, '
-                + 'and the exact amount settles about 6 minutes after the epoch ends. '
-                + 'It moves into your balance when it is paid — it is not spendable yet.',
-              )}
+              onPress={async () => {
+                await refreshPendingReward();
+                Alert.alert('Pending mining rewards', pendingDetailText(getLatestPendingReward() ?? pendingReward, getLatestBreakdown()));
+              }}
               accessibilityLabel="Pending mining rewards — tap for details"
             >
               <Text style={styles.pendingText}>≈ +{parseFloat(pendingReward.total).toFixed(8)} pending</Text>
